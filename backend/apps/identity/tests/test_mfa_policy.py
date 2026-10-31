@@ -81,3 +81,38 @@ def test_platform_operators_always_need_mfa(db):
 
     operator = User.objects.create_user("ops@example.com", PASSWORD, full_name="Ops", is_platform_operator=True)
     assert mfa_required_for(operator)
+
+
+def test_enrolment_can_be_postponed_during_the_grace_period_only(make_user, settings):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    settings.ERP = {**settings.ERP, "MFA_ENROLLMENT_GRACE_DAYS": 7}
+    user = make_user(mfa_enforced=True)
+    client = APIClient()
+    body = login(client, user.email).json()
+    assert body["status"] == "mfa_enrollment_required"
+    me = client.get("/api/v1/auth/me/").json()
+    assert me["mfa"]["skip_until"] is not None
+    assert client.post("/api/v1/auth/mfa/skip/", HTTP_X_CSRF_TOKEN=body["csrf_token"]).status_code == 200
+    assert client.get("/api/v1/auth/me/").json()["session"]["restricted_reason"] is None
+    assert AuditEvent.objects.filter(action="auth.mfa.enrollment_postponed", actor_id=user.pk).exists()
+
+    user.refresh_from_db()
+    user.mfa_grace_until = timezone.now() - timedelta(minutes=1)  # grace over
+    user.save(update_fields=["mfa_grace_until"])
+    client = APIClient()
+    body = login(client, user.email).json()
+    assert body["status"] == "mfa_enrollment_required"
+    assert client.get("/api/v1/auth/me/").json()["mfa"]["skip_until"] is None
+    assert client.post("/api/v1/auth/mfa/skip/", HTTP_X_CSRF_TOKEN=body["csrf_token"]).status_code == 422
+
+
+def test_no_skipping_when_grace_is_off(make_user, settings):
+    settings.ERP = {**settings.ERP, "MFA_ENROLLMENT_GRACE_DAYS": 0}
+    user = make_user(mfa_enforced=True)
+    client = APIClient()
+    csrf = login(client, user.email).json()["csrf_token"]
+    assert client.get("/api/v1/auth/me/").json()["mfa"]["skip_until"] is None
+    assert client.post("/api/v1/auth/mfa/skip/", HTTP_X_CSRF_TOKEN=csrf).status_code == 422

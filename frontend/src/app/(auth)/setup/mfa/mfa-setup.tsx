@@ -40,6 +40,16 @@ export function MfaSetup() {
     router.replace(fresh.session.restricted_reason === "password_change" ? "/setup/password" : "/");
   };
 
+  const restricted = me.data?.session.restricted_reason === "mfa_enrollment";
+  const skipUntil = me.data?.mfa.skip_until ?? null;
+  const skip = useMutation({
+    mutationFn: () => unwrap(api.POST("/api/v1/auth/mfa/skip/")),
+    onSuccess: async () => {
+      toast("Two-step sign-in postponed. You'll be reminded each time you sign in.");
+      await finish();
+    },
+  });
+
   const signOut = async () => {
     await api.POST("/api/v1/auth/logout/");
     queryClient.clear();
@@ -85,8 +95,8 @@ export function MfaSetup() {
       <div>
         <h1 className="type-signage text-[1.75rem]">Set up two-step verification</h1>
         <p className="mt-2 text-muted-foreground">
-          Your role requires a code from an authenticator app (such as Google Authenticator, Microsoft Authenticator
-          or 1Password) each time you sign in.
+          {restricted ? "Your account needs" : "Add"} a code from an authenticator app (such as Google Authenticator,
+          Microsoft Authenticator or 1Password) each time you sign in.
         </p>
       </div>
 
@@ -100,6 +110,21 @@ export function MfaSetup() {
             {start.isPending ? "Preparing…" : "Set up authenticator"}
           </Button>
           {alreadyEnrolled && <Button variant="outline" onClick={finish}>Continue</Button>}
+          {restricted && skipUntil && !alreadyEnrolled && (
+            <div className="grid gap-1">
+              <Button variant="outline" size="lg" onClick={() => skip.mutate()} disabled={skip.isPending}>
+                {skip.isPending ? "Skipping…" : "Skip for now"}
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                You can postpone this until {new Date(skipUntil).toLocaleDateString()}. Until then a few sensitive actions
+                (such as posting payments or viewing salaries) stay locked.
+              </p>
+            </div>
+          )}
+          {!restricted && (
+            <Button variant="ghost" onClick={() => router.replace("/account/security")}>Not now</Button>
+          )}
+          <FormError message={skip.error ? (isApiError(skip.error) ? skip.error.summary() : "Couldn't reach the server.") : undefined} />
         </div>
       ) : (
         <form

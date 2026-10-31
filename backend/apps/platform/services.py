@@ -31,6 +31,10 @@ def require_operator(ctx: ActorContext) -> None:
     if user is None or not getattr(user, "is_platform_operator", False) or user.organization_id is not None:
         raise AuthorizationDenied(reason="not_platform_operator")
     if not ctx.mfa_verified_within(settings.ERP["STEP_UP_MINUTES"]):
+        from apps.identity.services import in_mfa_grace
+
+        if in_mfa_grace(user):  # postponed enrolment (development grace): allowed until the deadline
+            return
         from apps.core.exceptions import MFARequired
 
         raise MFARequired()

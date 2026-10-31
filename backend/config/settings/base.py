@@ -272,6 +272,8 @@ ERP = {
     "MOBILE_SESSION_ABSOLUTE_HOURS": env_int("ERP_MOBILE_SESSION_ABSOLUTE_HOURS", 7 * 24),
     "SESSION_TOUCH_SECONDS": 60,
     "STEP_UP_MINUTES": env_int("ERP_STEP_UP_MINUTES", 15),
+    # Days a user who must enrol two-step sign-in may postpone it ("Skip for now"). 0 = no skipping.
+    "MFA_ENROLLMENT_GRACE_DAYS": env_int("ERP_MFA_ENROLLMENT_GRACE_DAYS", 0),
     "LOCKOUT_THRESHOLD": env_int("ERP_LOCKOUT_THRESHOLD", 5),
     "LOCKOUT_MINUTES": env_int("ERP_LOCKOUT_MINUTES", 15),
     "PASSWORD_HISTORY": env_int("ERP_PASSWORD_HISTORY", 5),

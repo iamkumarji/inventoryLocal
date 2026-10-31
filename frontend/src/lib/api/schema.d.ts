@@ -987,6 +987,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/mfa/skip/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 'Skip for now' on the enrolment screen, while the grace period lasts (ERP_MFA_ENROLLMENT_GRACE_DAYS). */
+        post: operations["auth_mfa_skip_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/mfa/totp/confirm/": {
         parameters: {
             query?: never;
@@ -8818,6 +8835,9 @@ export interface components {
             challenge_token: string;
             code: string;
         };
+        MFASkip: {
+            restricted_reason: string;
+        };
         MaintenancePlan: {
             /** Format: uuid */
             readonly id: string;
@@ -15382,6 +15402,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecoveryCodesRegenerated"];
+                };
+            };
+        };
+    };
+    auth_mfa_skip_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MFASkip"];
                 };
             };
         };

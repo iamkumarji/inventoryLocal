@@ -246,6 +246,7 @@ def login(email: str, password: str, client: ClientInfo) -> LoginResult:
     status = "authenticated"
     if _session_policy(user)["mfa_required"]:
         restricted, status = "mfa_enrollment", "mfa_enrollment_required"
+        _start_mfa_grace(user, now)
     elif user.must_change_password:
         restricted, status = "password_change", "password_change_required"
     session, token = create_session(user, client, mfa_verified=False, restricted_reason=restricted)
@@ -543,6 +544,44 @@ def unlock_user(ctx: ActorContext, user: User) -> User:
     user.refresh_from_db()
     audit.record("identity.user.unlocked", ctx=ctx, resource_type="identity.user", resource_id=user.pk)
     return user
+
+
+def _start_mfa_grace(user: User, now) -> None:
+    days = settings.ERP.get("MFA_ENROLLMENT_GRACE_DAYS", 0)
+    if days > 0 and user.mfa_grace_until is None:
+        user.mfa_grace_until = now + timedelta(days=days)
+        User.objects.filter(pk=user.pk).update(mfa_grace_until=user.mfa_grace_until)
+
+
+def in_mfa_grace(user: User) -> bool:
+    """Postponed enrolment still running: the account works without MFA except MFA-marked actions."""
+    return bool(
+        user.mfa_grace_until
+        and user.mfa_grace_until > timezone.now()
+        and not MFADevice.objects.filter(user=user, confirmed_at__isnull=False).exists()
+    )
+
+
+@transaction.atomic
+def postpone_mfa_enrollment(ctx: ActorContext, session: AuthSession) -> str:
+    """'Skip for now' during the grace period: lifts the enrolment restriction for this session."""
+    user = User.objects.select_for_update().get(pk=ctx.user_id)
+    if session.restricted_reason != "mfa_enrollment":
+        raise BusinessRuleViolation("Nothing to skip.", code="mfa_skip_not_applicable")
+    if not in_mfa_grace(user):
+        raise BusinessRuleViolation(
+            "Two-step sign-in can't be postponed any longer. Set it up to continue.", code="mfa_grace_over"
+        )
+    session.restricted_reason = "password_change" if user.must_change_password else ""
+    session.save(update_fields=["restricted_reason"])
+    audit.record(
+        "auth.mfa.enrollment_postponed",
+        ctx=ctx,
+        resource_type="identity.user",
+        resource_id=user.pk,
+        summary=f"until {user.mfa_grace_until:%Y-%m-%d}",
+    )
+    return session.restricted_reason
 
 
 def mfa_required_for(user: User) -> bool:

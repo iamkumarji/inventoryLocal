@@ -196,6 +196,7 @@ class MeView(APIView):
                     "required": services._session_policy(user)["mfa_required"],
                     "verified_at": session.mfa_verified_at,
                     # Organization policy: whether sensitive actions ask for a fresh code.
+                    "skip_until": user.mfa_grace_until if services.in_mfa_grace(user) else None,
                     "step_up_for_sensitive_actions": (
                         user.organization.require_mfa_for_sensitive_actions if user.organization_id else True
                     ),
@@ -257,6 +258,22 @@ class TOTPSetupView(APIView):
     )
     def post(self, request):
         return Response(services.begin_totp_enrollment(actor_for(request)))
+
+
+class SkipMFAView(APIView):
+    """'Skip for now' on the enrolment screen, while the grace period lasts (ERP_MFA_ENROLLMENT_GRACE_DAYS)."""
+
+    authz_authenticated_only = True
+    authz_allow_restricted = True
+
+    @extend_schema(
+        request=None,
+        responses=inline_serializer("MFASkip", {"restricted_reason": serializers.CharField(allow_blank=True)}),
+        tags=["auth"],
+    )
+    def post(self, request):
+        reason = services.postpone_mfa_enrollment(actor_for(request), request.auth)
+        return Response({"restricted_reason": reason})
 
 
 class DisableMFASerializer(serializers.Serializer):

@@ -25,7 +25,14 @@ export type Me = {
   roles: string[];
   permissions: { codes: string[]; grants: Record<string, Grant[]>; conditional: string[] };
   feature_flags: Record<string, boolean>;
-  mfa: { enrolled: boolean; required: boolean; verified_at: string | null; step_up_for_sensitive_actions: boolean };
+  mfa: {
+    enrolled: boolean;
+    required: boolean;
+    verified_at: string | null;
+    step_up_for_sensitive_actions: boolean;
+    /** Set while a required enrolment may still be postponed ("Skip for now"). */
+    skip_until: string | null;
+  };
   session: {
     id: string;
     client_type: string;

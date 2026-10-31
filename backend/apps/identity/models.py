@@ -42,6 +42,8 @@ class User(AuthzResourceMixin, AbstractBaseUser, TimeStampedModel):
     # Runs the hosting platform (creates and suspends organizations). Belongs to no organization,
     # holds no business grants and can't read tenant data.
     is_platform_operator = models.BooleanField(default=False)
+    # Set the first time the user is asked to enrol MFA; until then they may postpone ("Skip for now").
+    mfa_grace_until = models.DateTimeField(null=True, blank=True)
     mfa_enforced = models.BooleanField(default=False)
     failed_login_count = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)

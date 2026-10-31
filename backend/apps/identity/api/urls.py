@@ -19,5 +19,6 @@ urlpatterns = [
     path("auth/mfa/totp/confirm/", views.TOTPConfirmView.as_view(), name="auth-totp-confirm"),
     path("auth/mfa/recovery-codes/regenerate/", views.RecoveryCodesView.as_view(), name="auth-recovery-codes"),
     path("auth/mfa/disable/", views.DisableMFAView.as_view(), name="auth-mfa-disable"),
+    path("auth/mfa/skip/", views.SkipMFAView.as_view(), name="auth-mfa-skip"),
     *router.urls,
 ]

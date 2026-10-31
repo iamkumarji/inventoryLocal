@@ -158,6 +158,12 @@ class _Evaluation:
         return [p for p in source if p.organization_id == org_id and p.targets(self.action, rtype)]
 
 
+def _in_mfa_grace(user) -> bool:
+    from apps.identity.services import in_mfa_grace  # identity sits below authorization
+
+    return in_mfa_grace(user)
+
+
 def _step_up_required(user) -> bool:
     """Organizations may turn off the second check before MFA-marked actions (default: required)."""
     if not user.organization_id:
@@ -182,7 +188,7 @@ def _pre_checks(ctx: ActorContext, action: str) -> tuple[Decision | None, Policy
         organization_id=user.organization_id,
     ):
         return _deny("feature_disabled"), store, snapshot
-    if snapshot.mfa_required and ctx.mfa_verified_at is None:
+    if snapshot.mfa_required and ctx.mfa_verified_at is None and not _in_mfa_grace(user):
         return _deny("mfa_required"), store, snapshot
     if (
         store.permissions[action].requires_mfa

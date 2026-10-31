@@ -2329,6 +2329,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/RecoveryCodesRegenerated'
           description: ''
+  /api/v1/auth/mfa/skip/:
+    post:
+      operationId: auth_mfa_skip_create
+      description: '''Skip for now'' on the enrolment screen, while the grace period
+        lasts (ERP_MFA_ENROLLMENT_GRACE_DAYS).'
+      tags:
+      - auth
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MFASkip'
+          description: ''
   /api/v1/auth/mfa/totp/confirm/:
     post:
       operationId: auth_mfa_totp_confirm_create
@@ -21735,6 +21752,13 @@ components:
       required:
       - challenge_token
       - code
+    MFASkip:
+      type: object
+      properties:
+        restricted_reason:
+          type: string
+      required:
+      - restricted_reason
     MaintenancePlan:
       type: object
       properties:
