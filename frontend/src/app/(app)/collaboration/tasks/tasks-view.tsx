@@ -56,7 +56,7 @@ function TaskList() {
   return (
     <Section actions={
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-        <form onSubmit={(e) => { e.preventDefault(); url.set({ q: draft }); }} className="relative min-w-0 flex-1 sm:flex-none">
+        <form onSubmit={(e) => { e.preventDefault(); url.set({ q: draft }); }} className="relative w-full sm:w-auto">
           <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" aria-hidden />
           <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Search titles" className="h-9 w-full pl-8 sm:w-48" aria-label="Search tasks" />
         </form>

@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
-import { isDecimal, useOrgPlaces, type WorkCenter } from "@/lib/api/production";
+import { dec, isDecimal, useOrgPlaces, type WorkCenter } from "@/lib/api/production";
 import { money } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { useUrlState } from "@/lib/use-url-state";
@@ -45,8 +45,9 @@ function WorkCenterDialog({ existing, open, onOpenChange }: { existing: WorkCent
     if (open) {
       setForm(existing ? {
         code: existing.code, name: existing.name, facility: existing.facility,
-        capacity_hours_per_day: existing.capacity_hours_per_day ?? "8", labour_rate: existing.labour_rate ?? "0",
-        machine_rate: existing.machine_rate ?? "0", overhead_rate: existing.overhead_rate ?? "0", is_active: existing.is_active ?? true,
+        // The API sends rates with 6 decimals ("300.000000"); show them as typed ("300").
+        capacity_hours_per_day: dec.norm(existing.capacity_hours_per_day ?? "8"), labour_rate: dec.norm(existing.labour_rate),
+        machine_rate: dec.norm(existing.machine_rate), overhead_rate: dec.norm(existing.overhead_rate), is_active: existing.is_active ?? true,
       } : BLANK);
     }
   }
@@ -65,8 +66,10 @@ function WorkCenterDialog({ existing, open, onOpenChange }: { existing: WorkCent
     onError: () => queryClient.invalidateQueries({ queryKey: ["manufacturing", "work-centers"] }),
   });
   const errors = isApiError(save.error) ? save.error.fieldErrors() : {};
-  const rateFields = ["capacity_hours_per_day", "labour_rate", "machine_rate", "overhead_rate"] as const;
-  const invalid = rateFields.some((k) => !isDecimal(form[k], { maxDp: 4 })) || !form.name || (!existing && (!form.code || !form.facility));
+  // Rates are stored with 6 decimals and capacity with 2 (apps/manufacturing/models.py).
+  const rateFields = ["labour_rate", "machine_rate", "overhead_rate"] as const;
+  const invalid = rateFields.some((k) => !isDecimal(form[k], { maxDp: 6 })) || !isDecimal(form.capacity_hours_per_day, { maxDp: 2 })
+    || !form.name || (!existing && (!form.code || !form.facility));
   const set = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
   return (

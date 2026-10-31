@@ -165,7 +165,7 @@ function AccountWorkspace({ bank }: { bank: BankAccount }) {
       <Section title="Reconciliation" description="Ledger balance against the last statement balance on or before the date."
         actions={<AsOf id="recon-as-of" value={asOf} onChange={(v) => url.set({ as_of: v })} />}>
         {recon.error ? <ErrorState error={recon.error} onRetry={recon.refetch} /> : !r ? <RowsSkeleton rows={2} /> : (
-          <div className="grid gap-4 p-5">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5">
             <Figures items={[
               { label: "Ledger balance", value: <Amount value={r.book_balance} /> },
               { label: "Statement balance", value: r.statement_balance === null ? <span className="text-muted-foreground">No statement yet</span> : <Amount value={r.statement_balance} /> },
@@ -175,7 +175,7 @@ function AccountWorkspace({ bank }: { bank: BankAccount }) {
               { label: "Still to match", value: <span className="num">{r.unmatched_statement_lines} statement · {r.unreconciled_book_items.length} ledger</span> },
             ]} />
             {r.unreconciled_book_items.length > 0 && (
-              <div>
+              <div className="min-w-0">
                 <h3 className="mb-2 text-sm font-medium">Ledger entries not yet on a statement</h3>
                 <LedgerTable caption="Unreconciled ledger entries" columns={[{ key: "date", header: "Date" }, { key: "no", header: "Entry" }, { key: "narr", header: "Narration" }, { key: "amt", header: "Amount", align: "right" }]}>
                   {r.unreconciled_book_items.map((i) => (

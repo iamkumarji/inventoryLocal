@@ -156,3 +156,18 @@ export function NextStep({ title, body, children }: { title: string; body: React
     </div>
   );
 }
+
+/**
+ * Re-seeds a dialog's form whenever it opens (or switches to another record) and clears the previous
+ * attempt's error, so a second "New …" never shows the last entry or its error.
+ */
+export function useSeedOnOpen<T>(open: boolean, record: T, seed: () => void, resetMutation?: () => void) {
+  const [seen, setSeen] = useState<{ open: boolean; record: T } | null>(null);
+  if (!seen || seen.open !== open || seen.record !== record) {
+    setSeen({ open, record });
+    if (open) seed();
+  }
+  useEffect(() => {
+    if (open) resetMutation?.();
+  }, [open, record, resetMutation]);
+}

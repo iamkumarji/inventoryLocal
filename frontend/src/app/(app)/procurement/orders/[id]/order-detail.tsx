@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api, unwrap } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { tradeKey, useCompanyScopes, useUoms } from "@/lib/api/trade";
-import { date, dateTime } from "@/lib/format";
+import { date, dateTime, money } from "@/lib/format";
 import { useSession } from "@/lib/session";
 
 import { APPROVER_HINTS } from "../../requisitions/[id]/requisition-detail";
@@ -67,7 +67,7 @@ export function OrderDetail() {
   return (
     <>
       <PageHeader crumbs={[{ label: "Purchase orders", href: "/procurement/orders" }, { label: po.number }]} title={`${po.number} · ${po.supplier_name}`}
-        meta={<><DocStatus status={po.status} />{po.status === "approved" && <DocStatus status={po.receipt_status} />}<span className="num font-semibold">Total <Money value={po.amount} /></span><GstMode intra={po.intra_state} /></>}
+        meta={<><DocStatus status={po.status} />{po.status === "approved" && <DocStatus status={po.receipt_status} label={po.receipt_status === "open" ? "Not received" : undefined} />}<span className="num font-semibold">Total <Money value={po.amount} /></span><GstMode intra={po.intra_state} /></>}
         actions={<Actions>
           {(po.status === "draft" || po.status === "rejected") && can("procurement.purchase_order.update") && (
             <Button onClick={() => submit.mutate(undefined)} disabled={submit.isPending}><Send aria-hidden /> Submit for approval</Button>
@@ -89,7 +89,7 @@ export function OrderDetail() {
         <Section title="Lines" description={po.intra_state ? "Supplier is in the same state: GST is split into CGST and SGST." : "Supplier is in another state: GST is charged as IGST."}>
           <DataTable columns={columns} rows={po.lines} caption="Purchase order lines" />
           <Totals rows={[["Subtotal (taxable)", po.subtotal], ["CGST", sumOf(po.lines, (l) => l.cgst)], ["SGST", sumOf(po.lines, (l) => l.sgst)], ["IGST", sumOf(po.lines, (l) => l.igst)]]}
-            total={["Order total", po.amount]} note={`Tax ${trim(po.tax_total)} · amounts from the server`} />
+            total={["Order total", po.amount]} note={`Tax ${money(po.tax_total)} · amounts from the server`} />
         </Section>
         <Section title="Details">
           <Facts items={[

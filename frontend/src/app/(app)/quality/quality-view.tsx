@@ -10,7 +10,7 @@ import { Field } from "@/components/erp/field";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { ActiveStatus } from "@/components/erp/status";
 import { EmptyState, ErrorState, RowsSkeleton } from "@/components/erp/states";
-import { ActionError, ANY, Facts, FilterBar, ItemPicker, WarehouseSelect, Who, type ItemOption } from "@/components/inventory/bits";
+import { ActionError, ANY, Facts, FilterBar, ItemPicker, WarehouseSelect, Who, type ItemOption, useSeedOnOpen } from "@/components/inventory/bits";
 import { dec, isDecimal, qty } from "@/components/inventory/decimal";
 import { bannerError, fieldErrors } from "@/components/inventory/problem";
 import { InvStatus } from "@/components/inventory/status";
@@ -343,18 +343,10 @@ type ParamDraft = { name: string; kind: "numeric" | "pass_fail"; min: string; ma
 
 function PlanSheet({ plan, open, onOpenChange }: { plan: Plan | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const queryClient = useQueryClient();
-  const [seen, setSeen] = useState<Plan | null | undefined>(undefined);
   const [item, setItem] = useState<ItemOption | null>(null);
   const [d, setD] = useState({ stage: "receipt", sample_size: "1", is_active: true });
   const [params, setParams] = useState<ParamDraft[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
-  if (open && seen !== plan) {
-    setSeen(plan);
-    setItem(null);
-    setD(plan ? { stage: plan.stage, sample_size: String(plan.sample_size ?? 1), is_active: plan.is_active ?? true } : { stage: "receipt", sample_size: "1", is_active: true });
-    setParams(((plan?.parameters as PlanParameter[] | undefined) ?? []).map((p) => ({ name: p.name, kind: p.kind, min: p.min ?? "", max: p.max ?? "", unit: p.unit ?? "" })));
-    setLocalError(null);
-  }
   const parameters = params.map((p) => (p.kind === "numeric"
     ? { name: p.name.trim(), kind: p.kind, min: p.min || null, max: p.max || null, unit: p.unit.trim() }
     : { name: p.name.trim(), kind: p.kind }));
@@ -365,6 +357,12 @@ function PlanSheet({ plan, open, onOpenChange }: { plan: Plan | null; open: bool
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["quality", "plans"] }); toast("Inspection plan saved"); onOpenChange(false); },
     onError: (error) => { if (isApiError(error, "version_conflict")) queryClient.invalidateQueries({ queryKey: ["quality", "plans"] }); },
   });
+  useSeedOnOpen(open, plan, () => {
+    setItem(null);
+    setD(plan ? { stage: plan.stage, sample_size: String(plan.sample_size ?? 1), is_active: plan.is_active ?? true } : { stage: "receipt", sample_size: "1", is_active: true });
+    setParams(((plan?.parameters as PlanParameter[] | undefined) ?? []).map((p) => ({ name: p.name, kind: p.kind, min: p.min ?? "", max: p.max ?? "", unit: p.unit ?? "" })));
+    setLocalError(null);
+  }, save.reset);
   const update = (i: number, patch: Partial<ParamDraft>) => setParams(params.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

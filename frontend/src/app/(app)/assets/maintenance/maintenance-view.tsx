@@ -27,7 +27,7 @@ import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import {
-  isDecimal, localToIso, nowLocal, problemMessage, qty, today, type MaintenancePlan, type MeterReading, type WorkOrder,
+  dec, isDecimal, localToIso, nowLocal, problemMessage, qty, today, type MaintenancePlan, type MeterReading, type WorkOrder,
 } from "@/lib/api/production";
 import { date, dateTime } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -50,6 +50,8 @@ function NewWorkOrder({ open, onOpenChange, presetAsset }: { open: boolean; onOp
     onSuccess: (wo) => {
       queryClient.invalidateQueries({ queryKey: ["assets", "work-orders"] });
       toast(`${wo.number} opened`);
+      onOpenChange(false);
+      setDescription("");
       router.push(`/assets/work-orders/${wo.id}`);
     },
   });
@@ -86,8 +88,8 @@ function WorkOrders() {
     })),
   });
   const columns: Column<WorkOrder>[] = [
-    { key: "number", header: "Work order", cell: (w) => <span><span className="num block">{w.number}</span><span className="block max-w-[30ch] truncate text-xs font-normal text-muted-foreground">{w.description || (w.kind === "preventive" ? "Preventive maintenance" : "Breakdown")}</span></span> },
-    { key: "asset", header: "Asset", cell: (w) => <span className="num">{w.asset_code}</span> },
+    { key: "number", header: "Work order", cell: (w) => <span><span className="num block">{w.number}<span className="text-muted-foreground sm:hidden"> · {w.asset_code}</span></span><span className="block max-w-[30ch] truncate text-xs font-normal text-muted-foreground">{w.description || (w.kind === "preventive" ? "Preventive maintenance" : "Breakdown")}</span></span> },
+    { key: "asset", header: "Asset", className: "hidden sm:table-cell", cell: (w) => <span className="num">{w.asset_code}</span> },
     { key: "status", header: "Status", cell: (w) => <StateBadge kind="workOrder" value={w.status} /> },
     { key: "kind", header: "Kind", className: "hidden sm:table-cell", cell: (w) => (w.kind === "breakdown" ? "Breakdown" : "Preventive") },
     { key: "reported", header: "Reported", className: "hidden md:table-cell", cell: (w) => <span className="text-muted-foreground">{dateTime(w.reported_at ?? w.created_at)}</span> },
@@ -133,7 +135,7 @@ function PlanDialog({ existing, open, onOpenChange }: { existing: MaintenancePla
       setTechnician(null);
       setForm(existing ? {
         asset: existing.asset, name: existing.name, trigger: existing.trigger, interval_days: String(existing.interval_days ?? ""),
-        interval_meter: existing.interval_meter ?? "", next_due_date: existing.next_due_date ?? "", next_due_meter: existing.next_due_meter ?? "",
+        interval_meter: existing.interval_meter ? dec.norm(existing.interval_meter) : "", next_due_date: existing.next_due_date ?? "", next_due_meter: existing.next_due_meter ? dec.norm(existing.next_due_meter) : "",
         checklist: (existing.checklist ?? []).map((c) => (typeof c === "string" ? c : String((c as { item?: string }).item ?? ""))).join("\n"),
         is_active: existing.is_active ?? true,
       } : blank);

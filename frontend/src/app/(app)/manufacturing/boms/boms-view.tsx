@@ -34,6 +34,7 @@ function NewBom() {
     onSuccess: (bom) => {
       queryClient.invalidateQueries({ queryKey: ["manufacturing", "boms"] });
       toast(`${bom.code} created. Add its first version.`);
+      setOpen(false);
       router.push(`/manufacturing/boms/${bom.id}`);
     },
   });

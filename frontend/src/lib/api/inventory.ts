@@ -58,7 +58,9 @@ export type CountLine = {
   item_code: string;
   item_name: string;
   location: string | null;
+  location_code: string | null;
   batch: string | null;
+  batch_number: string | null;
   /** null while a blind count is open and the caller can't approve it. */
   system_quantity: string | null;
   counted_quantity: string | null;

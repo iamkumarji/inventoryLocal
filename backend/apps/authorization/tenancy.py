@@ -26,12 +26,16 @@ DIRECT = (
 )
 
 
-def _direct(model) -> str | None:
+def _direct(model, *, required_only: bool = True) -> str | None:
+    """Path through the model's own organization/company/... field. Optional ones (a journal line's
+    warehouse) can't place a row in an organization -- NULL drops it from the join -- so by default they
+    are skipped in favour of a required parent."""
     if model._meta.label_lower == "organization.organization":
         return "pk"
-    names = {f.name for f in model._meta.concrete_fields}
+    fields = {f.name: f for f in model._meta.concrete_fields}
     for name, path in DIRECT:
-        if name in names:
+        field = fields.get(name)
+        if field is not None and (not required_only or name == "organization" or not field.null):
             return path
     return None
 
@@ -41,13 +45,14 @@ def organization_path(model) -> str | None:
     path = _direct(model)
     if path is not None:
         return path
-    # Lines and other children: follow the first required FK to a parent that has a path.
+    # Lines and other children: follow the first required FK to a parent that has a required path.
     for field in model._meta.concrete_fields:
         if isinstance(field, models.ForeignKey) and not field.null:
             parent = _direct(field.related_model)
             if parent is not None:
                 return field.name if parent == "pk" else f"{field.name}__{parent}"
-    return None
+    # Last resort: an optional direct field (rows without it then can't be referenced).
+    return _direct(model, required_only=False)
 
 
 def restrict(queryset, organization_id):

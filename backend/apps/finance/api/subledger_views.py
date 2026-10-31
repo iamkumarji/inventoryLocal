@@ -19,6 +19,7 @@ from apps.finance.models import (
     BankStatementLine,
     Budget,
     BudgetLine,
+    CostCenter,
     JournalLine,
     OpenItem,
     Payment,
@@ -32,6 +33,8 @@ from apps.procurement.models import GoodsReceiptLine, PurchaseOrderLine
 from apps.shared import workflow
 from apps.shared.docviews import DecisionBody, DocumentViewSet, VersionBody
 from apps.shared.viewsets import MasterDataViewSet, master_schema
+
+from .fields import company_pk, organization_pk
 
 IDEM = idempotency_header(True)
 
@@ -65,10 +68,8 @@ class OpenItemSerializer(serializers.ModelSerializer):
 
 
 class SupplierInvoiceLineSerializer(serializers.ModelSerializer):
-    grn_line = serializers.PrimaryKeyRelatedField(
-        queryset=GoodsReceiptLine.objects.all(), required=False, allow_null=True
-    )
-    po_line = serializers.PrimaryKeyRelatedField(queryset=PurchaseOrderLine.objects.all(), required=False)
+    grn_line = company_pk(GoodsReceiptLine.objects.all(), "receipt__company_id", required=False, allow_null=True)
+    po_line = company_pk(PurchaseOrderLine.objects.all(), "order__company_id", required=False)
 
     class Meta:
         model = SupplierInvoiceLine
@@ -83,7 +84,7 @@ class SupplierInvoiceLineSerializer(serializers.ModelSerializer):
 
 class SupplierInvoiceSerializer(serializers.ModelSerializer):
     company = company_field("finance.supplier_invoice.read")
-    supplier = serializers.PrimaryKeyRelatedField(queryset=Partner.objects.filter(is_supplier=True))
+    supplier = organization_pk(Partner.objects.filter(is_supplier=True))
     supplier_name = serializers.CharField(source="supplier.name", read_only=True)
     lines = SupplierInvoiceLineSerializer(many=True)
 
@@ -133,7 +134,7 @@ class SupplierInvoiceSerializer(serializers.ModelSerializer):
 
 
 class AllocationSerializer(serializers.ModelSerializer):
-    open_item = serializers.PrimaryKeyRelatedField(queryset=OpenItem.objects.filter(is_open=True))
+    open_item = company_pk(OpenItem.objects.filter(is_open=True))
     number = serializers.CharField(source="open_item.number", read_only=True)
 
     class Meta:
@@ -143,8 +144,8 @@ class AllocationSerializer(serializers.ModelSerializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     company = company_field("finance.payment.read")
-    partner = serializers.PrimaryKeyRelatedField(queryset=Partner.objects.all())
-    bank_account = serializers.PrimaryKeyRelatedField(queryset=BankAccount.objects.filter(is_active=True))
+    partner = organization_pk(Partner.objects.all())
+    bank_account = company_pk(BankAccount.objects.filter(is_active=True))
     partner_name = serializers.CharField(source="partner.name", read_only=True)
     allocations = AllocationSerializer(many=True)
 
@@ -184,7 +185,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 class CompanyBankAccountSerializer(serializers.ModelSerializer):
     company = company_field("finance.bank_account.read")
-    account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.filter(sub_type__in=["bank", "cash"]))
+    account = company_pk(Account.objects.filter(sub_type__in=["bank", "cash"]))
 
     class Meta:
         model = BankAccount
@@ -205,13 +206,13 @@ class ImportSerializer(serializers.Serializer):
 
 
 class MatchSerializer(serializers.Serializer):
-    statement_line = serializers.PrimaryKeyRelatedField(queryset=BankStatementLine.objects.filter(status="unmatched"))
-    journal_line = serializers.PrimaryKeyRelatedField(queryset=JournalLine.objects.filter(entry__status="posted"))
+    statement_line = company_pk(BankStatementLine.objects.filter(status="unmatched"))
+    journal_line = company_pk(JournalLine.objects.filter(entry__status="posted"), "entry__company_id")
 
 
 class ApplyCreditSerializer(serializers.Serializer):
-    credit = serializers.PrimaryKeyRelatedField(queryset=OpenItem.objects.filter(is_open=True))
-    debit = serializers.PrimaryKeyRelatedField(queryset=OpenItem.objects.filter(is_open=True))
+    credit = company_pk(OpenItem.objects.filter(is_open=True))
+    debit = company_pk(OpenItem.objects.filter(is_open=True))
     amount = serializers.DecimalField(max_digits=20, decimal_places=4)
 
     def validate(self, attrs):
@@ -359,7 +360,7 @@ class BankAccountViewSet(MasterDataViewSet):
     @action(detail=True, methods=["post"])
     def match(self, request, pk=None):
         self.get_object()
-        data = MatchSerializer(data=request.data)
+        data = MatchSerializer(data=request.data, context=self.get_serializer_context())
         data.is_valid(raise_exception=True)
         line = subledger.manual_match(
             self.actor, data.validated_data["statement_line"], data.validated_data["journal_line"]
@@ -475,6 +476,8 @@ class BudgetVsActualView(_CompanyReport):
 
 
 class BudgetLineSerializer(serializers.ModelSerializer):
+    account = company_pk(Account.objects.all())
+    cost_center = company_pk(CostCenter.objects.all(), required=False, allow_null=True)
     account_code = serializers.CharField(source="account.code", read_only=True)
 
     class Meta:
@@ -486,6 +489,7 @@ class BudgetLineSerializer(serializers.ModelSerializer):
 class BudgetSerializer(serializers.ModelSerializer):
     lines = BudgetLineSerializer(many=True)
     company = ScopedPrimaryKeyRelatedField(queryset=Company.objects.all(), read_action="finance.budget.read")
+    fiscal_year = company_pk(FiscalYear.objects.all())
     total = serializers.SerializerMethodField()
 
     class Meta:

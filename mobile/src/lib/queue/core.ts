@@ -93,7 +93,7 @@ export function resolveStep(step: Step, results: unknown[]): { path: string; bod
 function problemOf(status: number, body: unknown): Job["error"] {
   const b = (body ?? {}) as Record<string, unknown>;
   const title = typeof b.title === "string" ? b.title : `Request failed (${status})`;
-  let detail = typeof b.detail === "string" ? b.detail : undefined;
+  let detail = typeof b.detail === "string" && b.detail !== title ? b.detail : undefined;
   if (!detail && b.errors && typeof b.errors === "object") {
     detail = Object.entries(b.errors as Record<string, unknown>)
       .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(" ") : String(messages)}`)

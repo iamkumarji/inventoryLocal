@@ -25,6 +25,11 @@ import { useSession } from "@/lib/session";
 
 const POST_DENIED = "You can't approve this count. Counters can't approve a count they entered quantities on, and the person who started the count can't approve it either. Ask another approver.";
 
+/** Batch and bin of a line: the same item can be counted on several lines, one per batch or bin. */
+function where(line: CountLine): string {
+  return [line.batch_number && `Batch ${line.batch_number}`, line.location_code && `bin ${line.location_code}`].filter(Boolean).join(", ");
+}
+
 function variance(line: CountLine): string | null {
   if (line.counted_quantity === null || line.system_quantity === null) return null;
   return dec.sub(line.counted_quantity, line.system_quantity);
@@ -109,16 +114,22 @@ export function CountDetail() {
   };
 
   const entryColumns: Column<CountLine>[] = [
-    { key: "item", header: "Item", cell: (l) => <span><span className="num block font-medium">{l.item_code}</span><span className="block max-w-[26ch] truncate text-xs text-muted-foreground">{l.item_name}</span></span> },
+    { key: "item", header: "Item", cell: (l) => (
+      <span>
+        <span className="num block font-medium">{l.item_code}</span>
+        <span className="block max-w-[26ch] truncate text-xs text-muted-foreground">{l.item_name}</span>
+        {where(l) && <span className="num block text-xs text-muted-foreground">{where(l)}</span>}
+      </span>
+    ) },
     ...(showSystemInEntry ? [{ key: "sys", header: "System", align: "right" as const, cell: (l: CountLine) => <span className="num text-muted-foreground">{qty(l.system_quantity)}</span> }] : []),
     { key: "counted", header: "Counted", align: "right", className: "w-36", cell: (l) => canCount ? (
-      <Input aria-label={`Counted quantity for ${l.item_code}`} inputMode="decimal" className="num h-8 text-right" value={drafts[l.id] ?? ""}
+      <Input aria-label={`Counted quantity for ${l.item_code}${where(l) ? `, ${where(l)}` : ""}`} inputMode="decimal" className="num h-8 min-w-20 text-right" value={drafts[l.id] ?? ""}
         onChange={(e) => setDrafts({ ...drafts, [l.id]: e.target.value })} />
     ) : <span className="num">{qty(l.counted_quantity)}</span> },
     { key: "by", header: "Counted by", cell: (l) => (l.counted_by ? <Who id={l.counted_by} /> : <span className="text-muted-foreground">Not counted</span>) },
   ];
   const reviewColumns: Column<CountLine>[] = [
-    { key: "item", header: "Item", cell: (l) => <span className="num font-medium">{l.item_code}</span> },
+    { key: "item", header: "Item", cell: (l) => <span className="num font-medium">{l.item_code}{where(l) && <span className="block text-xs font-normal text-muted-foreground">{where(l)}</span>}</span> },
     { key: "sys", header: "System", align: "right", cell: (l) => <span className="num">{qty(l.system_quantity)}</span> },
     { key: "cnt", header: "Counted", align: "right", cell: (l) => <span className="num">{qty(l.counted_quantity)}</span> },
     { key: "var", header: "Variance", align: "right", cell: (l) => {
@@ -144,7 +155,7 @@ export function CountDetail() {
         )}
       />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-6">
           <Section title="Count sheet" description={c.blind && counting ? "Blind count: enter what you find. System quantities stay hidden until the count is approved." : `${lines.length} line${lines.length === 1 ? "" : "s"}`}
             actions={canCount && <Button size="sm" onClick={save} disabled={record.isPending || changed.length === 0}><Save aria-hidden /> Save counts{changed.length ? ` (${changed.length})` : ""}</Button>}>
             {(localError || record.error) && (

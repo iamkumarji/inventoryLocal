@@ -10,7 +10,7 @@ logs="${E2E_LOGS:-$mobile/test-results/logs}"
 mkdir -p "$logs"
 
 export DATABASE_URL=postgres:///otabu_erp_mobile DJANGO_SETTINGS_MODULE=config.settings.dev ERP_DEMO_DATA=1
-export CELERY_BROKER_URL=redis://localhost:6379/10 THROTTLE_AUTH=1000/min
+export CELERY_BROKER_URL=redis://localhost:6379/10 THROTTLE_AUTH=1000/min DB_CONN_MAX_AGE=0
 
 cleanup() { kill $(jobs -p) 2>/dev/null || true; }
 trap cleanup EXIT

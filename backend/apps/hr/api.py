@@ -283,7 +283,7 @@ class LeaveTypeViewSet(MasterDataViewSet):
 class LeaveBalanceSerializer(serializers.ModelSerializer):
     employee = employee_field(f"{services.LEAVE_BALANCE}.create")
     employee_code = serializers.CharField(source="employee.code", read_only=True)
-    leave_type = serializers.PrimaryKeyRelatedField(queryset=LeaveType.objects.filter(is_active=True))
+    leave_type = OrgScopedPK(queryset=LeaveType.objects.filter(is_active=True), org_path="company__organization_id")
     allocated = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, min_value=0)
     available = serializers.DecimalField(max_digits=6, decimal_places=2, read_only=True)
 
@@ -314,7 +314,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     employee = employee_field(f"{services.LEAVE}.create")
     employee_code = serializers.CharField(source="employee.code", read_only=True)
     employee_name = serializers.CharField(source="employee.full_name", read_only=True)
-    leave_type = serializers.PrimaryKeyRelatedField(queryset=LeaveType.objects.filter(is_active=True))
+    leave_type = OrgScopedPK(queryset=LeaveType.objects.filter(is_active=True), org_path="company__organization_id")
 
     class Meta:
         model = LeaveRequest
@@ -456,7 +456,9 @@ class SalaryComponentViewSet(MasterDataViewSet):
 
 
 class StructureLineSerializer(serializers.ModelSerializer):
-    component = serializers.PrimaryKeyRelatedField(queryset=SalaryComponent.objects.filter(is_active=True))
+    component = OrgScopedPK(
+        queryset=SalaryComponent.objects.filter(is_active=True), org_path="company__organization_id"
+    )
     component_code = serializers.CharField(source="component.code", read_only=True)
 
     class Meta:
@@ -488,7 +490,7 @@ class SalaryStructureViewSet(DocumentViewSet):
 
 
 class SalaryLineSerializer(serializers.ModelSerializer):
-    component = serializers.PrimaryKeyRelatedField(queryset=SalaryComponent.objects.all())
+    component = OrgScopedPK(queryset=SalaryComponent.objects.all(), org_path="company__organization_id")
     component_code = serializers.CharField(source="component.code", read_only=True)
 
     class Meta:
@@ -502,7 +504,9 @@ class EmployeeSalarySerializer(serializers.ModelSerializer):
 
     employee = employee_field(f"{services.SALARY}.create")
     employee_code = serializers.CharField(source="employee.code", read_only=True)
-    structure = serializers.PrimaryKeyRelatedField(queryset=SalaryStructure.objects.filter(is_active=True))
+    structure = OrgScopedPK(
+        queryset=SalaryStructure.objects.filter(is_active=True), org_path="company__organization_id"
+    )
     lines = SalaryLineSerializer(many=True)
 
     class Meta:
@@ -524,7 +528,7 @@ class EmployeeSalarySerializer(serializers.ModelSerializer):
 
 class SalaryUpdateSerializer(serializers.Serializer):
     lines = SalaryLineSerializer(many=True)
-    notes = serializers.CharField(max_length=300, required=False)
+    notes = serializers.CharField(max_length=300, required=False, allow_blank=True)
     version = serializers.IntegerField()
 
 
@@ -652,7 +656,7 @@ class PayrollRunViewSet(DocumentViewSet):
             )
         )
 
-    @extend_schema(request=ReasonVersionBody, responses=PayrollRunSerializer)
+    @extend_schema(request=ReasonVersionBody, responses=PayrollRunSerializer, parameters=[idempotency_header(False)])
     @action(detail=True, methods=["post"])
     @idempotent()
     def reverse(self, request, pk=None):
@@ -788,7 +792,7 @@ class MyPayslipsView(APIView):
 
 
 class MyLeaveSerializer(serializers.Serializer):
-    leave_type = serializers.PrimaryKeyRelatedField(queryset=LeaveType.objects.filter(is_active=True))
+    leave_type = OrgScopedPK(queryset=LeaveType.objects.filter(is_active=True), org_path="company__organization_id")
     from_date = serializers.DateField()
     to_date = serializers.DateField()
     reason = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
@@ -809,7 +813,7 @@ class MyLeaveRequestsView(APIView):
     @extend_schema(request=MyLeaveSerializer, responses={201: LeaveRequestSerializer}, tags=["hr"])
     def post(self, request):
         employee = _own_employee(request)
-        data = MyLeaveSerializer(data=request.data)
+        data = MyLeaveSerializer(data=request.data, context={"request": request})
         data.is_valid(raise_exception=True)
         v = dict(data.validated_data)
         submit = v.pop("submit")

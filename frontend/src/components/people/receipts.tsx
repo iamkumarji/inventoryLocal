@@ -38,12 +38,15 @@ export function useUploadReceipt(claimId: string) {
       }));
       return doc.id;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["people", "receipts", claimId] }),
+    onSuccess: (_id, file) => {
+      queryClient.invalidateQueries({ queryKey: ["people", "receipts", claimId] });
+      toast(`Attached ${file.name}`);
+    },
     onError: (error) => toast.error(errorText(error)),
   });
 }
 
-export function UploadReceiptButton({ claimId, onUploaded, label = "Attach file" }: { claimId: string; onUploaded: (documentId: string) => void; label?: string }) {
+export function UploadReceiptButton({ claimId, onUploaded, label = "Attach file" }: { claimId: string; onUploaded: (documentId: string, fileName: string) => void; label?: string }) {
   const input = useRef<HTMLInputElement>(null);
   const upload = useUploadReceipt(claimId);
   return (
@@ -52,7 +55,12 @@ export function UploadReceiptButton({ claimId, onUploaded, label = "Attach file"
         onChange={async (e) => {
           const file = e.target.files?.[0];
           e.target.value = "";
-          if (file) onUploaded(await upload.mutateAsync(file));
+          if (!file) return;
+          try {
+            onUploaded(await upload.mutateAsync(file), file.name);
+          } catch {
+            /* toast shown by the mutation */
+          }
         }} />
       <Button type="button" variant="outline" size="sm" disabled={upload.isPending} onClick={() => input.current?.click()}>
         <Upload aria-hidden /> {upload.isPending ? "Uploading…" : label}

@@ -323,6 +323,12 @@ def test_sod_same_record_rule(make_user, grant, ctx, org, company, procurement_e
     decision = pdp.authorize(ctx(approver), action, po(company, creator, action_history=history))
     assert not decision.allowed and decision.reason == "sod"
     assert pdp.can(ctx(approver), action, po(company, creator))
+    # Raised as an explained refusal: the API answers 403 with code "sod" (rule code only in the log).
+    from apps.core.exceptions import AuthorizationDenied
+
+    with pytest.raises(AuthorizationDenied) as exc:
+        pdp.require(ctx(approver), action, po(company, creator, action_history=history))
+    assert exc.value.reason == "sod"
 
 
 def test_scope_filter_matches_object_decisions(make_user, grant, ctx, site):

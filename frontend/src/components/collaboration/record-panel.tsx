@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileUp, History, MessageSquare, Paperclip, Send } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { Section } from "@/components/erp/page-header";
@@ -53,6 +53,9 @@ function activityText(action: string): string {
   return verb.replace(/_/g, " ");
 }
 
+const noSubscription = () => () => {};
+const linkedComment = () => new URLSearchParams(window.location.search).get("comment");
+
 function Comments({ resourceType, resourceId }: { resourceType: string; resourceId: string }) {
   const { can, me } = useSession();
   const queryClient = useQueryClient();
@@ -82,6 +85,12 @@ function Comments({ resourceType, resourceId }: { resourceType: string; resource
     onError: (error) => toast.error(problemMessage(error)),
   });
   const rows = comments.data?.results ?? [];
+  // A mention notification links to `?comment=<id>`: bring that comment into view and mark it.
+  const focused = useSyncExternalStore(noSubscription, linkedComment, () => null);
+  const loaded = rows.length > 0;
+  useEffect(() => {
+    if (focused && loaded) document.getElementById(`comment-${focused}`)?.scrollIntoView({ block: "center" });
+  }, [focused, loaded]);
 
   return (
     <div className="grid gap-4">
@@ -90,7 +99,8 @@ function Comments({ resourceType, resourceId }: { resourceType: string; resource
       ) : (
         <ol className="grid gap-3" aria-label="Comments">
           {rows.map((c) => (
-            <li key={c.id} className="rounded-md border bg-background/60 px-3 py-2.5">
+            <li key={c.id} id={`comment-${c.id}`} aria-current={c.id === focused ? "true" : undefined}
+              className={`rounded-md border px-3 py-2.5 ${c.id === focused ? "border-status-info bg-status-info/5" : "bg-background/60"}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <p className="text-sm font-medium">{c.author_name}</p>
                 <time className="text-xs text-muted-foreground" dateTime={c.created_at} title={dateTime(c.created_at)}>{ago(c.created_at)}{c.edited_at && " · edited"}</time>

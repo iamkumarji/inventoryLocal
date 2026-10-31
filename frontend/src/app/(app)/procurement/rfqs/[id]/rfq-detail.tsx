@@ -100,7 +100,7 @@ function SelectQuotation({ rfq, row, onClose }: { rfq: RFQ; row: Ranking; onClos
             <DialogTitle>Select {row.supplier}</DialogTitle>
             <DialogDescription>Closes the RFQ and drafts a purchase order for the buyer who raised it. Someone other than the buyer approves the order.</DialogDescription>
           </DialogHeader>
-          <ActionError error={select.error} hints={{ permission_denied: "You can't select a quotation on an RFQ you raised (maker-checker), or you lack the right to select quotations." }} />
+          <ActionError error={select.error} hints={{ permission_denied: "You can't select quotations on this RFQ: you need the right to approve RFQs." }} />
           <Field id="sel-wh" label="Deliver to"><WarehouseSelect id="sel-wh" branchId={rfq.branch} value={form.warehouse} onChange={(v) => setForm({ ...form, warehouse: v })} /></Field>
           <Field id="sel-date" label="Expected by"><Input id="sel-date" type="date" value={form.expected_date} onChange={(e) => setForm({ ...form, expected_date: e.target.value })} required /></Field>
           <Field id="sel-reason" label="Reason for choosing" hint={row.is_cheapest ? "Optional for the cheapest quotation." : "Required: this is not the cheapest quotation."}>

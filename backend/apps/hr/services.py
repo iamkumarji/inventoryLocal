@@ -923,7 +923,8 @@ def create_payroll_run(ctx: ActorContext, *, company, year: int, month: int) -> 
     pdp.require(ctx, f"{RUN}.create", pdp.Resource.ref(RUN, company_id=company.pk))
     if not 1 <= month <= 12:
         raise ValidationError({"month": ["Use 1 to 12."]})
-    if PayrollRun.objects.filter(company=company, year=year, month=month).exists():
+    # A reversed run doesn't count: reversing reopens the month for a corrected run.
+    if PayrollRun.objects.filter(company=company, year=year, month=month).exclude(status="reversed").exists():
         raise ValidationError({"month": ["A payroll run already exists for this month."]})
     start = date(year, month, 1)
     end = date(year, month, calendar.monthrange(year, month)[1])

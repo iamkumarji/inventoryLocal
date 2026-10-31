@@ -12,7 +12,7 @@ import { Field } from "@/components/erp/field";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { ActiveStatus, StatusBadge } from "@/components/erp/status";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/erp/states";
-import { ActionError, WarehouseSelect } from "@/components/inventory/bits";
+import { ActionError, WarehouseSelect, useSeedOnOpen } from "@/components/inventory/bits";
 import { dec, isDecimal, qty } from "@/components/inventory/decimal";
 import { draftFromItem, itemBody, ItemFields, NONE, type ItemDraft } from "@/components/inventory/item-form";
 import { bannerError, fieldErrors } from "@/components/inventory/problem";
@@ -57,8 +57,8 @@ function Barcodes({ item }: { item: Item }) {
         </ul>
       )}
       {can("masterdata.item.update") && (
-        <form className="grid gap-3 border-t px-5 py-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
-          <Field id="bc-code" label="Barcode" error={fieldErrors(add.error).barcode}>
+        <form className="grid gap-3 border-t px-5 py-4 sm:grid-cols-2 sm:items-end" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
+          <Field id="bc-code" label="Barcode" error={fieldErrors(add.error).barcode} className="sm:col-span-2">
             <Input id="bc-code" className="num" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} required />
           </Field>
           <Field id="bc-sym" label="Symbology">
@@ -73,8 +73,8 @@ function Barcodes({ item }: { item: Item }) {
               <SelectContent><SelectItem value={NONE}>Stock unit</SelectItem>{uoms.data?.filter((u) => u.is_active !== false).map((u) => <SelectItem key={u.id} value={u.id}>{u.code}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Button type="submit" variant="outline" disabled={add.isPending || !form.barcode.trim()}><Plus aria-hidden /> Add barcode</Button>
-          <ActionError error={bannerError(add.error)} className="sm:col-span-4" denied="You can't change this item." />
+          <Button type="submit" variant="outline" className="justify-self-start sm:col-span-2" disabled={add.isPending || !form.barcode.trim()}><Plus aria-hidden /> Add barcode</Button>
+          <ActionError error={bannerError(add.error)} className="sm:col-span-2" denied="You can't change this item." />
         </form>
       )}
     </Section>
@@ -86,16 +86,8 @@ type PolicyDraft = { warehouse: string; reorder_level: string; reorder_quantity:
 function PolicyDialog({ item, policy, open, onOpenChange }: { item: Item; policy: ItemPolicy | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { activeCompany } = useSession();
   const queryClient = useQueryClient();
-  const [seen, setSeen] = useState<ItemPolicy | null | undefined>(undefined);
   const [d, setD] = useState<PolicyDraft>({ warehouse: "", reorder_level: "0", reorder_quantity: "0", min_quantity: "0", max_quantity: "", lead_time_days: "0" });
   const [localError, setLocalError] = useState<string | null>(null);
-  if (open && seen !== policy) {
-    setSeen(policy);
-    setD(policy ? {
-      warehouse: policy.warehouse, reorder_level: decInput(policy.reorder_level), reorder_quantity: decInput(policy.reorder_quantity),
-      min_quantity: decInput(policy.min_quantity), max_quantity: policy.max_quantity ? decInput(policy.max_quantity) : "", lead_time_days: String(policy.lead_time_days ?? 0),
-    } : { warehouse: "", reorder_level: "0", reorder_quantity: "0", min_quantity: "0", max_quantity: "", lead_time_days: "0" });
-  }
   const numbers = { reorder_level: d.reorder_level, reorder_quantity: d.reorder_quantity, min_quantity: d.min_quantity, max_quantity: d.max_quantity || null, lead_time_days: Number.parseInt(d.lead_time_days || "0", 10) };
   const save = useMutation({
     mutationFn: () => policy
@@ -110,6 +102,13 @@ function PolicyDialog({ item, policy, open, onOpenChange }: { item: Item; policy
       if (isApiError(error, "version_conflict")) queryClient.invalidateQueries({ queryKey: ["masterdata", "policies", item.id] });
     },
   });
+  useSeedOnOpen(open, policy, () => {
+    setD(policy ? {
+      warehouse: policy.warehouse, reorder_level: decInput(policy.reorder_level), reorder_quantity: decInput(policy.reorder_quantity),
+      min_quantity: decInput(policy.min_quantity), max_quantity: policy.max_quantity ? decInput(policy.max_quantity) : "", lead_time_days: String(policy.lead_time_days ?? 0),
+    } : { warehouse: "", reorder_level: "0", reorder_quantity: "0", min_quantity: "0", max_quantity: "", lead_time_days: "0" });
+    setLocalError(null);
+  }, save.reset);
   const errors = fieldErrors(save.error);
   const num = (k: keyof PolicyDraft, label: string, hint?: string) => (
     <Field id={`pol-${k}`} label={label} error={errors[k]} hint={hint}>
@@ -162,8 +161,8 @@ function Policies({ item }: { item: Item }) {
   const u = item.stock_uom_code;
   const columns: Column<ItemPolicy>[] = [
     { key: "wh", header: "Warehouse", cell: (p) => <span className="num">{wh.label(p.warehouse)}</span> },
-    { key: "rl", header: "Reorder level", align: "right", cell: (p) => <span className="num">{qty(p.reorder_level, u)}</span> },
-    { key: "rq", header: "Reorder qty", align: "right", cell: (p) => <span className="num">{qty(p.reorder_quantity, u)}</span> },
+    { key: "rl", header: "Reorder level", align: "right", cell: (p) => <span className="num">{qty(p.reorder_level)}</span> },
+    { key: "rq", header: "Reorder qty", align: "right", cell: (p) => <span className="num">{qty(p.reorder_quantity)}</span> },
     { key: "mm", header: "Min / max", align: "right", cell: (p) => <span className="num">{qty(p.min_quantity)} / {p.max_quantity ? qty(p.max_quantity) : "—"}</span> },
     { key: "lt", header: "Lead time", align: "right", cell: (p) => <span className="num">{p.lead_time_days ?? 0} d</span> },
     ...(can("masterdata.item_policy.update") ? [{ key: "edit", header: <span className="sr-only">Edit</span>, align: "right" as const, cell: (p: ItemPolicy) => (
@@ -171,7 +170,7 @@ function Policies({ item }: { item: Item }) {
     ) }] : []),
   ];
   return (
-    <Section title="Reorder settings by warehouse" description="Reorder level and quantity, min/max and lead time per warehouse."
+    <Section title="Reorder settings by warehouse" description={`Reorder level and quantity, min/max and lead time per warehouse. Quantities in ${u}.`}
       actions={can("masterdata.item_policy.create") && <Button size="sm" variant="outline" onClick={() => { setEditing(null); setOpen(true); }}><Plus aria-hidden /> Add warehouse</Button>}>
       <DataTable columns={columns} rows={query.data?.results} isLoading={query.isLoading} error={query.error} onRetry={query.refetch} caption="Reorder settings"
         empty={<EmptyState title="No reorder settings" description="Without them, planning won't suggest replenishment for this item." />} />
@@ -237,7 +236,7 @@ export function ItemDetail() {
             {editable && <Button type="submit" className="justify-self-start" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save item"}</Button>}
           </form>
         </Section>
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-6">
           <Barcodes item={item} />
           {can("masterdata.item_policy.read") && <Policies item={item} />}
         </div>

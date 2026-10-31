@@ -7916,6 +7916,12 @@ paths:
     post:
       operationId: hr_payroll_runs_reverse_create
       parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        description: Unique per user action; a retry with the same key replays the
+          stored response.
       - in: path
         name: id
         schema:
@@ -9765,7 +9771,8 @@ paths:
   /api/v1/inventory/scan/:
     get:
       operationId: inventory_scan_retrieve
-      description: Resolve a scanned code to an item, batch, serial or bin.
+      description: Resolve a scanned or typed code to an item (barcode or item code),
+        batch, serial or bin.
       parameters:
       - in: query
         name: code
@@ -15996,9 +16003,17 @@ components:
           type: string
           format: uuid
           nullable: true
+        user_name:
+          type: string
+          readOnly: true
+          nullable: true
         role:
           type: string
           format: uuid
+          nullable: true
+        role_name:
+          type: string
+          readOnly: true
           nullable: true
         permission:
           $ref: '#/components/schemas/PermissionEnum'
@@ -16014,6 +16029,8 @@ components:
       - granted_at
       - granted_by
       - id
+      - role_name
+      - user_name
     AclRequest:
       type: object
       properties:
@@ -16447,6 +16464,9 @@ components:
           format: uuid
           readOnly: true
           nullable: true
+        rejection_reason:
+          type: string
+          readOnly: true
       required:
       - amount
       - approved_by
@@ -16463,6 +16483,7 @@ components:
       - paid_on
       - payment_journal
       - purpose
+      - rejection_reason
       - settled_amount
       - status
       - submitted_by
@@ -18075,6 +18096,9 @@ components:
           format: uuid
           readOnly: true
           nullable: true
+        rejection_reason:
+          type: string
+          readOnly: true
       required:
       - advance_settled
       - amount
@@ -18095,6 +18119,7 @@ components:
       - paid_on
       - payment_journal
       - purpose
+      - rejection_reason
       - status
       - submitted_by
       - version
@@ -19554,6 +19579,10 @@ components:
           type: string
           format: uuid
           readOnly: true
+        uploaded_by_name:
+          type: string
+          readOnly: true
+          nullable: true
         uploaded_at:
           type: string
           format: date-time
@@ -19566,6 +19595,7 @@ components:
       - size
       - uploaded_at
       - uploaded_by
+      - uploaded_by_name
       - version_no
     Download:
       type: object
@@ -25582,7 +25612,6 @@ components:
             $ref: '#/components/schemas/SalaryLineRequest'
         notes:
           type: string
-          minLength: 1
           maxLength: 300
         version:
           type: integer
@@ -31545,6 +31574,10 @@ components:
           format: uuid
           readOnly: true
           nullable: true
+        approved_by_name:
+          type: string
+          readOnly: true
+          nullable: true
         notes:
           type: string
         components:
@@ -31560,15 +31593,21 @@ components:
           format: uuid
           readOnly: true
           nullable: true
+        created_by_name:
+          type: string
+          readOnly: true
+          nullable: true
         created_at:
           type: string
           format: date-time
           readOnly: true
       required:
       - approved_by
+      - approved_by_name
       - components
       - created_at
       - created_by
+      - created_by_name
       - effective_from
       - effective_to
       - id

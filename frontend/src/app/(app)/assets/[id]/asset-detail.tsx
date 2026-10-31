@@ -30,7 +30,7 @@ const METHOD_LABEL = { slm: "Straight line", wdv: "Written down value" } as cons
 
 function EditDraft({ asset, onSaved }: { asset: Asset; onSaved: (a: Asset) => void }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: asset.name, cost: asset.cost, put_to_use_date: asset.put_to_use_date ?? "", location: asset.location ?? "" });
+  const [form, setForm] = useState({ name: asset.name, cost: dec.norm(asset.cost), put_to_use_date: asset.put_to_use_date ?? "", location: asset.location ?? "" });
   const save = useMutation({
     mutationFn: () => unwrap(api.PATCH("/api/v1/assets/assets/{id}/", {
       params: { path: { id: asset.id } },
@@ -40,7 +40,7 @@ function EditDraft({ asset, onSaved }: { asset: Asset; onSaved: (a: Asset) => vo
   });
   const errors = isApiError(save.error) ? save.error.fieldErrors() : {};
   return (
-    <ActionDialog open={open} onOpenChange={(next) => { if (next) setForm({ name: asset.name, cost: asset.cost, put_to_use_date: asset.put_to_use_date ?? "", location: asset.location ?? "" }); setOpen(next); }}
+    <ActionDialog open={open} onOpenChange={(next) => { if (next) setForm({ name: asset.name, cost: dec.norm(asset.cost), put_to_use_date: asset.put_to_use_date ?? "", location: asset.location ?? "" }); setOpen(next); }}
       trigger={<Button variant="outline"><Pencil aria-hidden /> Edit</Button>} title={`Edit ${asset.code}`}
       submitLabel="Save" pending={save.isPending} error={save.error} disabled={!form.name || !isDecimal(form.cost, { maxDp: 4, allowZero: false })} onSubmit={() => save.mutate()}>
       <Field id="e-name" label="Name" error={errors.name}><Input id="e-name" className="h-10" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
@@ -233,8 +233,8 @@ export function AssetDetail() {
           {a.status === "capitalized" && can("assets.asset.dispose") && <DisposeDialog asset={a} onDone={onDone} />}
         </>}
       />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {draft && (can("assets.asset.approve") || can("assets.asset.update")) && (
             <Section title="Capitalize" description="Posts Dr fixed assets / Cr bank (or the contra account) on the put-to-use date. Within your approval limit you can capitalize directly; above it, submit for approval.">
               <div className="grid gap-3 px-5 py-4">
@@ -279,7 +279,9 @@ export function AssetDetail() {
               <Facts className="border-t" items={[
                 ["Disposal", `${a.disposal_kind === "sale" ? "Sale" : "Scrap"} on ${date(a.disposal_date)}`],
                 ["Proceeds", money(a.disposal_proceeds)],
-                ["Gain / loss", <span key="g" className={dec.cmp(a.disposal_gain ?? "0", "0") < 0 ? "text-status-rejected" : "text-status-approved"}>{money(a.disposal_gain)}</span>],
+                ["Gain / loss", dec.cmp(a.disposal_gain ?? "0", "0") < 0
+                  ? <span key="g" className="text-status-rejected">Loss {money(dec.sub("0", a.disposal_gain ?? "0"))}</span>
+                  : <span key="g" className="text-status-approved">Gain {money(a.disposal_gain ?? "0")}</span>],
               ]} />
             )}
           </Section>
@@ -298,7 +300,7 @@ export function AssetDetail() {
           </Section>
           {(a.status === "capitalized" || a.status === "disposed") && <Reliability asset={a} />}
         </div>
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {can("assets.meter_reading.read") && <MeterReadings asset={a} />}
           <RecordPanel resourceType="assets.asset" resourceId={a.id} />
         </div>

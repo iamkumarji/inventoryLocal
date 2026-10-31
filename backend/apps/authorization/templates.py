@@ -29,6 +29,7 @@ ROLE_TEMPLATES = [
             "!authorization.approval_limit.manage",  # financial control: Finance Controller
             "audit.audit_event.read",
             "core.*.*",
+            "integrations.*.*",  # outbound webhooks to other systems
         ],
     },
     {

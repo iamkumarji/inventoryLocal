@@ -317,6 +317,32 @@ def test_my_leave_endpoint_files_and_submits_own_leave(staff, api_for, casual, c
     assert balances[0]["available"] == "12.00"
 
 
+def test_related_fields_only_accept_ids_from_the_callers_organization(staff, api_for, casual, ctx, org, make_company):
+    from apps.organization.models import Organization
+
+    enable_policy(org, "allow_own_leave_request")
+    stranger = make_company(organization=Organization.objects.create(code="OTHER", name="Other Org"))
+    foreign = LeaveType.objects.create(company=stranger, code="CL", name="Foreign leave", annual_quota=D("12"))
+    refused = api_for(staff["worker"]).post(
+        "/api/v1/hr/my/leave-requests/",
+        {"leave_type": str(foreign.pk), "from_date": str(day(14)), "to_date": str(day(14))},
+        format="json",
+    )
+    assert refused.status_code == 400 and refused.json()["errors"][0]["field"] == "leave_type"
+    foreign_component = SalaryComponent.objects.create(company=stranger, code="BASIC", name="Basic", kind="earning")
+    structure = api_for(staff["officer"]).post(
+        "/api/v1/hr/salary-structures/",
+        {
+            "company": str(staff["emp"]["worker"].company_id),
+            "code": "X",
+            "name": "X",
+            "lines": [{"component": str(foreign_component.pk)}],
+        },
+        format="json",
+    )
+    assert structure.status_code == 400 and structure.json()["errors"][0]["field"] == "lines.0.component"
+
+
 # --- Payroll -------------------------------------------------------------------------------------------------
 
 
@@ -588,3 +614,43 @@ def test_self_service_respects_the_module_flag(staff, api_for):
     flags.invalidate()
     response = api_for(staff["worker"]).get("/api/v1/hr/my/profile/")
     assert response.status_code == 404 and response.json()["type"] == "feature_disabled"
+
+
+def test_reversing_a_posted_run_reopens_the_month_for_a_corrected_run(staff, ctx, books, posted_run, grant):
+    with pytest.raises(AuthorizationDenied):  # needs hr.payroll_run.reverse
+        services.reverse_payroll(ctx(staff["officer"]), posted_run, reason="Wrong basic for E002")
+    grant(staff["officer"], ["hr.payroll_run.reverse"], books)
+    officer = ctx(staff["officer"])
+    with pytest.raises(ValidationError):
+        services.reverse_payroll(officer, posted_run, reason="  ")
+    run = services.reverse_payroll(
+        officer, posted_run, reason="Wrong basic for E002", expected_version=posted_run.version
+    )
+    assert run.status == "reversed"
+    run.journal_entry.refresh_from_db()
+    assert run.journal_entry.reversed_by_id is not None  # the original stays; a reversing journal cancels it
+
+    # The month reopens: a corrected run can be created and computed again.
+    again = services.create_payroll_run(officer, company=books, year=run.year, month=run.month)
+    again = services.compute_payroll(officer, again)
+    assert again.status == "computed" and again.employee_count == 2
+    with pytest.raises(ValidationError):  # still only one live run per month
+        services.create_payroll_run(officer, company=books, year=run.year, month=run.month)
+
+
+def test_salary_edit_accepts_cleared_notes(staff, api_for, payroll, components):
+    from apps.hr.models import EmployeeSalary
+
+    salary = EmployeeSalary.objects.get(employee=staff["emp"]["worker"])
+    response = api_for(staff["officer"]).patch(
+        f"/api/v1/hr/salaries/{salary.pk}/",
+        {
+            "lines": [{"component": str(components["BASIC"].pk), "amount": "12500"}],
+            "notes": "",
+            "version": salary.version,
+        },
+        format="json",
+    )
+    assert response.status_code == 200, response.json()
+    assert response.json()["notes"] == ""
+    assert {line["component_code"]: D(line["amount"]) for line in response.json()["lines"]} == {"BASIC": D("12500")}

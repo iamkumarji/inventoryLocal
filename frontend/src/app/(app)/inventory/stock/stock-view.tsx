@@ -82,16 +82,9 @@ function ScanBox({ onItem }: { onItem: (itemId: string) => void }) {
   const wh = useWarehouses({ activeCompanyOnly: false });
   const [code, setCode] = useState("");
   const scan = useMutation({
-    mutationFn: async (value: string): Promise<ScanResult> => {
-      try {
-        // Item codes and barcodes resolve through item lookup; serials, batches and bins through scan.
-        const item = await unwrap(api.GET("/api/v1/masterdata/items/lookup/", { params: { query: { code: value } } }));
-        return { kind: "item", item_id: item.id, item_code: item.code, uom_id: null };
-      } catch (error) {
-        if (!isApiError(error) || error.status !== 404) throw error;
-        return (await unwrap(api.GET("/api/v1/inventory/scan/", { params: { query: { code: value } } }))) as unknown as ScanResult;
-      }
-    },
+    // One call resolves item codes, barcodes, serials, batches and bins.
+    mutationFn: async (value: string): Promise<ScanResult> =>
+      (await unwrap(api.GET("/api/v1/inventory/scan/", { params: { query: { code: value } } }))) as unknown as ScanResult,
   });
   const r = scan.data;
   return (

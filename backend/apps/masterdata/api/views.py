@@ -2,6 +2,7 @@ from django.db.models import Q
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from apps.authorization import pdp
@@ -30,6 +31,26 @@ class UomConversionViewSet(MasterDataViewSet):
     editable_fields = ("factor",)
     filterset_fields = ["item"]
     ordering = ["from_uom__code"]
+
+    def create(self, request, *args, **kwargs):
+        # A duplicate would otherwise surface as a unique-constraint error on a `code` field this model doesn't have.
+        data = self.get_serializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        v = data.validated_data
+        duplicate = UomConversion.objects.filter(
+            organization_id=request.user.organization_id, item=v.get("item"), from_uom=v["from_uom"], to_uom=v["to_uom"]
+        )
+        if duplicate.exists():
+            scope = " for this item" if v.get("item") else ""
+            raise ValidationError(
+                {
+                    "to_uom": [
+                        f"A conversion from {v['from_uom'].code} to {v['to_uom'].code}{scope} already exists. "
+                        "Edit its factor instead."
+                    ]
+                }
+            )
+        return super().create(request, *args, **kwargs)
 
 
 @master_schema
@@ -136,6 +157,17 @@ class ItemWarehousePolicyViewSet(MasterDataViewSet):
     editable_fields = ("reorder_level", "reorder_quantity", "min_quantity", "max_quantity", "lead_time_days")
     filterset_fields = ["item", "warehouse", "company"]
     ordering = ["item__code"]
+
+    def create(self, request, *args, **kwargs):
+        # A duplicate would otherwise surface as a unique-constraint error on a `code` field this model doesn't have.
+        data = self.get_serializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        v = data.validated_data
+        if ItemWarehousePolicy.objects.filter(item=v["item"], warehouse=v["warehouse"]).exists():
+            raise ValidationError(
+                {"warehouse": ["This item already has reorder settings for this warehouse. Edit them instead."]}
+            )
+        return super().create(request, *args, **kwargs)
 
     def create_resource(self, validated):
         return pdp.Resource.ref(

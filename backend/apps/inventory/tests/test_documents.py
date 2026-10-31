@@ -177,7 +177,7 @@ def test_count_with_blind_entry_and_independent_approval(ctx, books, plant, make
     documents.record_counts(ctx(counter), count, [{"line_id": line.pk, "counted_quantity": D("47")}])
     with pytest.raises(AuthorizationDenied) as exc:
         documents.post_count(ctx(counter), count)
-    assert exc.value.reason == "counter_cannot_approve"
+    assert exc.value.reason == "maker_checker"
     with pytest.raises(AuthorizationDenied):
         documents.post_count(k, count)  # the person who started the count doesn't hold approval either
     count = documents.post_count(m, count)
@@ -198,3 +198,57 @@ def test_adjustment_requires_permission_in_warehouse(ctx, books, plant, make_ite
             lines=[{"item": item, "quantity": D("1")}],
         )
     assert not StockAdjustment.objects.exists()
+
+
+def test_counter_refused_approval_is_explained_over_the_api(
+    ctx, api_for, books, plant, make_item, people, make_user, grant
+):
+    """A counter who approves gets a 403 with code `maker_checker` and a readable reason, not a bare refusal."""
+    item = make_item()
+    k, m = ctx(people["keeper"]), ctx(people["manager"])
+    opening(ctx, k, m, books, plant["rm"], item, qty="5", cost="10")
+    count = documents.start_count(k, company=books, warehouse=plant["rm"], count_date=timezone.localdate())
+    counter = make_user(full_name="Counter")
+    grant(counter, ["inventory.stock_count.update", "inventory.stock_count.read"], plant["rm"])
+    grant(counter, [], plant["rm"], role=people["manager_role"])
+    documents.record_counts(ctx(counter), count, [{"line_id": count.lines.get().pk, "counted_quantity": D("5")}])
+    count.refresh_from_db()
+    response = api_for(counter, company=books).post(
+        f"/api/v1/inventory/counts/{count.pk}/post/",
+        {"version": count.version},
+        format="json",
+        HTTP_IDEMPOTENCY_KEY="count-post-counter-1",
+    )
+    assert response.status_code == 403
+    assert response.json()["code"] == "maker_checker"
+    assert "Another person must check this" in response.json()["detail"]
+
+
+def test_count_lines_name_their_batch_and_bin(ctx, api_for, books, plant, make_item, people, grant):
+    """Regression: count lines carried only batch/bin ids, so a counter couldn't tell two lines of the same
+    item apart (one per batch or bin)."""
+    from apps.inventory.models import Location
+
+    item = make_item(tracking="batch")
+    k, m = ctx(people["keeper"]), ctx(people["manager"])
+    rack = Location.objects.create(company=books, warehouse=plant["rm"], code="R-01")
+    adj = documents.create_adjustment(
+        k,
+        company=books,
+        warehouse=plant["rm"],
+        posting_date=timezone.localdate(),
+        reason="opening_balance",
+        lines=[
+            {"item": item, "quantity": D("4"), "unit_cost": D("10"), "batch_number": "B-1", "location": rack},
+            {"item": item, "quantity": D("6"), "unit_cost": D("10"), "batch_number": "B-2"},
+        ],
+    )
+    documents.submit_adjustment(k, adj)
+    documents.approve_adjustment_directly(m, adj)
+    documents.post_adjustment(k, adj)
+    count = documents.start_count(k, company=books, warehouse=plant["rm"], count_date=timezone.localdate())
+    grant(people["keeper"], ["inventory.stock_count.read"], plant["rm"])
+    response = api_for(people["keeper"], company=books).get(f"/api/v1/inventory/counts/{count.pk}/")
+    assert response.status_code == 200
+    lines = {(line["batch_number"], line["location_code"]) for line in response.json()["lines"]}
+    assert lines == {("B-1", "R-01"), ("B-2", None)}

@@ -37,7 +37,10 @@ export function NewAdjustment() {
   const locations = useLocations(form.warehouse || null);
   const locationList = locations.data?.results ?? [];
 
-  const update = (key: number, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const update = (key: number, patch: Partial<Line>) => {
+    setLocalError(null); // the message described the previous input
+    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  };
 
   const validate = (): string | null => {
     if (!form.warehouse) return "Choose the warehouse.";

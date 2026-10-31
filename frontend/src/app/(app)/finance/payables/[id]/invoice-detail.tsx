@@ -95,7 +95,8 @@ export function SupplierInvoiceDetail() {
         </>}
       />
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
-        <ActionError error={act.error} forbidden="You can't do this step on this invoice. Approval needs someone other than the person who submitted it, within their approval limit." />
+        <ActionError error={act.error} forbidden="You can't do this step on this invoice. Ask someone with supplier-invoice rights for this company."
+          hints={{ self_approval: "A different person with invoice approval rights must decide on the variance." }} />
         <Figures items={[
           { label: "Taxable value", value: <Amount value={inv.subtotal} /> },
           { label: inv.intra_state ? "CGST + SGST" : "IGST", value: inv.intra_state ? <span className="num">{formatDecimal(inv.cgst, { currency: true })} + {formatDecimal(inv.sgst, { currency: true })}</span> : <Amount value={inv.igst} /> },

@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Field, FormError } from "@/components/erp/field";
 import { ErrorState, RowsSkeleton } from "@/components/erp/states";
 import { RowErrorList } from "@/components/people/actions";
-import { ClaimLinesEditor, blankLine, lineToApi, type LineDraft } from "@/components/people/claim-form";
+import { AdvanceSelect, ClaimLinesEditor, blankLine, lineToApi, type LineDraft } from "@/components/people/claim-form";
 import { Card, SelfService } from "@/components/people/self-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,12 +22,13 @@ function NewClaim() {
   const categories = useCategories();
   const [claimDate, setClaimDate] = useState(today);
   const [purpose, setPurpose] = useState("");
+  const [advance, setAdvance] = useState("");
   const [lines, setLines] = useState<LineDraft[]>(() => [blankLine()]);
   const save = useMutation({
     mutationFn: async (submit: boolean) => {
       const byId = new Map((categories.data?.results ?? []).map((c) => [c.id, c]));
       const claim = await unwrap(api.POST("/api/v1/expenses/claims/", {
-        body: { claim_date: claimDate, purpose: purpose.trim(), lines: lines.map((l) => lineToApi(l, Boolean(byId.get(l.category)?.requires_vehicle))) },
+        body: { claim_date: claimDate, purpose: purpose.trim(), advance: advance || null, lines: lines.map((l) => lineToApi(l, Boolean(byId.get(l.category)?.requires_vehicle))) },
       }));
       if (!submit) return { claim, submitted: false };
       try {
@@ -52,9 +53,10 @@ function NewClaim() {
     <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); save.mutate(true); }}>
       <FormError message={save.error && !isApiError(save.error, "validation_error") ? errorText(save.error) : (errors.lines ?? errors._form ?? errors.employee)} />
       <RowErrorList errors={rowErrors(save.error)} unit="Line" />
-      <Card className="grid gap-3 p-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:p-5">
+      <Card className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:p-5">
         <Field id="claim-date" label="Claim date" error={errors.claim_date}><Input id="claim-date" type="date" className="h-11" value={claimDate} onChange={(e) => setClaimDate(e.target.value)} required /></Field>
         <Field id="claim-purpose" label="Purpose" error={errors.purpose}><Input id="claim-purpose" className="h-11" value={purpose} maxLength={300} placeholder="e.g. Client visit, Mumbai" onChange={(e) => setPurpose(e.target.value)} required /></Field>
+        <div className="min-w-0 sm:col-span-2 empty:hidden"><AdvanceSelect value={advance} onChange={setAdvance} error={errors.advance} /></div>
       </Card>
       <ClaimLinesEditor lines={lines} onChange={setLines} categories={categories.data?.results ?? []} />
       <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:p-0">

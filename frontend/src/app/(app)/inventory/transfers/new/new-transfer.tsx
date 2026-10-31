@@ -59,7 +59,10 @@ export function NewTransfer() {
   const canBins = can("inventory.location.read");
   const fromBins = useLocations(form.from_warehouse || null, canBins).data?.results ?? [];
   const toBins = useLocations(form.to_warehouse || null, canBins).data?.results ?? [];
-  const update = (key: number, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const update = (key: number, patch: Partial<Line>) => {
+    setLocalError(null); // the message described the previous input
+    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  };
 
   const validate = (): string | null => {
     if (!form.from_warehouse || !form.to_warehouse) return "Choose where the stock comes from and where it goes.";

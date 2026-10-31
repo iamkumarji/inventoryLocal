@@ -34,6 +34,7 @@ const TONES: Record<string, Tone> = {
   paid: "approved",
   settled: "neutral",
   rejected: "rejected",
+  reversed: "neutral",
   cancelled: "neutral",
   active: "approved",
   exited: "neutral",

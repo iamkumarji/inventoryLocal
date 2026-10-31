@@ -27,13 +27,16 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { api, unwrap } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
-import { problemMessage, rememberPerson, usePersonLabel, type ErpDocument } from "@/lib/api/production";
+import { problemMessage, rememberPerson, today, usePersonLabel, type ErpDocument } from "@/lib/api/production";
 import { date, dateTime } from "@/lib/format";
 import { useSession } from "@/lib/session";
 
 import { ACCEPT, CONFIDENTIALITY } from "../documents-view";
 
 type Saved = (doc: ErpDocument, message: string) => void;
+
+/** Display names the API serves alongside ids (not yet in the generated schema types). */
+const named = <T extends object>(row: T) => row as T & { user_name?: string | null; role_name?: string | null; uploaded_by_name?: string | null };
 
 function NewVersion({ doc, onSaved, onFail }: { doc: ErpDocument; onSaved: Saved; onFail: () => void }) {
   const [open, setOpen] = useState(false);
@@ -193,7 +196,7 @@ function Access({ doc }: { doc: ErpDocument }) {
             <li key={entry.id} className="flex items-center gap-3 px-5 py-2.5">
               <Shield className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               <div className="min-w-0 flex-1 text-sm">
-                <p className="truncate font-medium">{entry.user ? person(entry.user, "A colleague") : roleName(entry.role)}</p>
+                <p className="truncate font-medium">{entry.user ? person(entry.user, named(entry).user_name ?? "A colleague") : (named(entry).role_name ?? roleName(entry.role))}</p>
                 <p className="text-xs text-muted-foreground">{entry.permission === "write" ? "Read and change" : "Read"} · granted {dateTime(entry.granted_at)}</p>
               </div>
               <Button variant="ghost" size="icon" aria-label="Revoke access" onClick={() => revoke.mutate(entry.id)} disabled={revoke.isPending}><X aria-hidden /></Button>
@@ -239,7 +242,7 @@ export function DocumentDetail() {
   if (query.error) return <ErrorState error={query.error} onRetry={query.refetch} />;
   const doc = query.data!;
   const current = doc.current_version;
-  const deletable = !doc.legal_hold && (!doc.retention_until || doc.retention_until < new Date().toISOString().slice(0, 10));
+  const deletable = !doc.legal_hold && (!doc.retention_until || doc.retention_until < today());
 
   return (
     <>
@@ -260,8 +263,8 @@ export function DocumentDetail() {
         </>}
       />
       {(download.error || remove.error) && <div className="mb-4"><FormError message={problemMessage(download.error ?? remove.error)} /></div>}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           <Section title="Versions" description="Every upload is kept; the newest is current.">
             {versions.error ? <ErrorState error={versions.error} /> : (
               <ul className="divide-y" aria-label="Versions">
@@ -270,7 +273,7 @@ export function DocumentDetail() {
                     <span className="num grid size-9 shrink-0 place-items-center rounded-md border text-sm font-semibold">v{v.version_no}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{v.filename}</p>
-                      <p className="truncate text-xs text-muted-foreground">{fileSize(v.size)} · {dateTime(v.uploaded_at)} by {person(v.uploaded_by)}</p>
+                      <p className="truncate text-xs text-muted-foreground">{fileSize(v.size)} · {dateTime(v.uploaded_at)} by {person(v.uploaded_by, named(v).uploaded_by_name ?? undefined)}</p>
                       <p className="num truncate text-xs text-muted-foreground" title={v.sha256}>SHA-256 {v.sha256.slice(0, 16)}…</p>
                     </div>
                     {can("documents.document.download") && (
@@ -292,7 +295,7 @@ export function DocumentDetail() {
           </Section>
           {can("documents.document.share") && <Access doc={doc} />}
         </div>
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {can("documents.document.manage") && <Governance doc={doc} onSaved={onSaved} onFail={onFail} />}
           {can("documents.document.delete") && (
             <Section title="Delete">

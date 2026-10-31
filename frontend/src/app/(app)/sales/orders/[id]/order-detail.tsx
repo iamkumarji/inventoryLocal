@@ -91,7 +91,7 @@ export function SalesOrderDetail() {
         {blocked && can("sales.sales_order.credit_override") && !isMaker && (
           <DecisionPanel title="Credit decision" description="Override to approve the order and reserve stock, or uphold the block to reject it. Needs a fresh two-step verification."
             approveLabel="Override and approve" rejectLabel="Uphold block" noteLabel="Reason" noteRequired pending={credit.isPending} error={credit.error}
-            hints={{ permission_denied: "You can't decide on credit for an order you raised or submitted, or you lack credit authority." }}
+            hints={{ permission_denied: "You can't decide on credit for this order: you need credit override authority." }}
             onDecide={(approve, note) => credit.mutate({ approve, note })} />
         )}
         {blocked && isMaker && <Notice>The order is waiting for a credit decision by someone with credit authority other than you.</Notice>}

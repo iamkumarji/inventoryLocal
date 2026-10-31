@@ -199,3 +199,12 @@ test("a queued photo that is gone fails the job instead of waiting forever", asy
   expect(await runJob(job, store, send)).toBe("failed");
   expect((await store.all())[0].error?.title).toBe("The photo is no longer on this phone.");
 });
+
+test("a detail identical to the title isn't repeated", async () => {
+  const store = new MemoryStore();
+  const job = newJob("x", "x", [{ method: "POST", path: "/x/" }], ids);
+  await store.put(job);
+  const same = "You do not have permission to perform this action.";
+  await runJob(job, store, async () => ({ status: 403, body: { title: same, detail: same } }));
+  expect((await store.all())[0].error).toEqual({ status: 403, title: same, detail: undefined });
+});

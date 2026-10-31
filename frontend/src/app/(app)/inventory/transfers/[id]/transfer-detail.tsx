@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, idempotencyKey, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
-import { todayIso, useWarehouses, type Transfer } from "@/lib/api/inventory";
+import { todayIso, useLocations, useWarehouses, type Transfer } from "@/lib/api/inventory";
 import { date, dateTime } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,9 @@ export function TransferDetail() {
   const key = ["inventory", "transfer", id];
   const query = useQuery({ queryKey: key, queryFn: () => unwrap(api.GET("/api/v1/inventory/transfers/{id}/", { params: { path: { id } } })) });
   const [on, setOn] = useState(todayIso());
+  const canBins = can("inventory.location.read");
+  const fromBins = useLocations(query.data?.from_warehouse, canBins).data?.results ?? [];
+  const toBins = useLocations(query.data?.to_warehouse, canBins).data?.results ?? [];
 
   const act = useMutation({
     mutationFn: (verb: "dispatch" | "receive") => {
@@ -91,6 +94,11 @@ export function TransferDetail() {
     { key: "qty", header: "Quantity", align: "right", cell: (l) => <span className="num">{qty(l.quantity)}</span> },
     { key: "batch", header: "Batch", cell: (l) => <BatchLabel id={l.batch} /> },
     { key: "serials", header: "Serials", cell: (l) => { const s = (l.serials as string[] | undefined) ?? []; return <span className="num text-xs">{s.length ? s.join(", ") : "—"}</span>; } },
+    { key: "bins", header: "Bins", cell: (l) => {
+      if (!l.from_location && !l.to_location) return <span className="text-muted-foreground">—</span>;
+      const code = (bins: typeof fromBins, id: string | null | undefined) => (id ? bins.find((b) => b.id === id)?.code ?? "Bin" : "Any");
+      return <span className="num inline-flex items-center gap-1 whitespace-nowrap">{code(fromBins, l.from_location)}<ArrowRight className="size-3 text-muted-foreground" aria-label="to" />{code(toBins, l.to_location)}</span>;
+    } },
   ];
   const dateField = (verb: string) => (
     <div className="flex items-center gap-2">
@@ -129,7 +137,7 @@ export function TransferDetail() {
         )}
       />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-6">
           <Section>
             <div className="grid gap-4 px-5 py-4">
               <Stepper status={t.status} />

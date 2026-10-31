@@ -66,6 +66,9 @@ class OperationSerializer(serializers.ModelSerializer):
 class VersionSerializer(serializers.ModelSerializer):
     components = ComponentSerializer(many=True)
     operations = OperationSerializer(many=True, required=False)
+    # Names for the maker-checker line ("drafted by … · approved by …"); the directory can't look up ids.
+    created_by_name = serializers.CharField(source="created_by.full_name", read_only=True, allow_null=True)
+    approved_by_name = serializers.CharField(source="approved_by.full_name", read_only=True, allow_null=True)
 
     class Meta:
         model = BomVersion
@@ -77,10 +80,12 @@ class VersionSerializer(serializers.ModelSerializer):
             "effective_from",
             "effective_to",
             "approved_by",
+            "approved_by_name",
             "notes",
             "components",
             "operations",
             "created_by",
+            "created_by_name",
             "created_at",
         ]
         read_only_fields = ["id", "version_no", "status", "effective_to", "approved_by", "created_by", "created_at"]

@@ -139,19 +139,22 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
+# Cache and channel keys are namespaced by database, so installations (or test stacks) that share a
+# Redis can never read each other's cached flags, permission snapshots or sockets.
+_KEY_NAMESPACE = env("ERP_CACHE_PREFIX", "") or f"erp:{DATABASES['default'].get('NAME', 'default')}"
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
         "LOCATION": REDIS_URL,
         "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
-        "KEY_PREFIX": "erp",
+        "KEY_PREFIX": _KEY_NAMESPACE,
     }
 }
 
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [REDIS_URL]},
+        "CONFIG": {"hosts": [REDIS_URL], "prefix": f"asgi:{_KEY_NAMESPACE}"},
     }
 }
 

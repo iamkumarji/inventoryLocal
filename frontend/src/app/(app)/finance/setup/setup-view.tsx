@@ -227,7 +227,7 @@ function PostingRules() {
                 <Cell className="font-medium">{r.key}</Cell>
                 <Cell className="text-muted-foreground">{r.posting_group || "Any"}</Cell>
                 <Cell className="text-muted-foreground">{r.warehouse_type || "Any"}</Cell>
-                <Cell className="min-w-48"><span className="mr-2">{r.account_code}</span><span className="font-sans text-muted-foreground">{name(r.account)}</span></Cell>
+                <Cell className="min-w-48"><span className="mr-2">{r.account_code}</span>{" "}<span className="font-sans text-muted-foreground">{name(r.account)}</span></Cell>
                 <Cell><ActiveStatus active={r.is_active !== false} /></Cell>
                 <Cell>{can("finance.posting_rule.update") && <RuleDialog rule={r} accounts={leaf} onDone={refresh} />}</Cell>
               </Row>
@@ -341,7 +341,7 @@ function PeriodClose() {
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
       <Section title="Fiscal periods" description="Close periods in order. A closed period accepts no postings in any sub-ledger.">
         {allYears.length === 0 ? <EmptyState title="No fiscal years" /> : allYears.map((fy) => (
-          <div key={fy.id} className="border-b last:border-0">
+          <section key={fy.id} aria-label={`Fiscal year ${fy.code}`} className="border-b last:border-0">
             <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
               <p className="font-medium">{fy.code} <span className="ml-1 text-sm font-normal text-muted-foreground">{date(fy.start_date)} – {date(fy.end_date)}</span></p>
               <span className="flex items-center gap-2">
@@ -363,7 +363,7 @@ function PeriodClose() {
                 </li>
               ))}
             </ul>
-          </div>
+          </section>
         ))}
         <div className="px-5 pb-4"><ActionError error={closeYear.error} /></div>
       </Section>

@@ -2,13 +2,16 @@ from rest_framework import serializers
 
 from apps.authorization.drf import ScopedPrimaryKeyRelatedField
 from apps.finance.models import Account, AccountDetermination, CostCenter, JournalEntry, JournalLine
-from apps.organization.models import Company
+from apps.organization.models import Company, Department
+
+from .fields import company_pk
 
 META = ["id", "version", "created_at", "updated_at"]
 
 
 class AccountSerializer(serializers.ModelSerializer):
     company = ScopedPrimaryKeyRelatedField(queryset=Company.objects.all(), read_action="finance.account.read")
+    parent = company_pk(Account.objects.all(), required=False, allow_null=True)
 
     class Meta:
         model = Account
@@ -30,6 +33,8 @@ class AccountSerializer(serializers.ModelSerializer):
 
 class CostCenterSerializer(serializers.ModelSerializer):
     company = ScopedPrimaryKeyRelatedField(queryset=Company.objects.all(), read_action="finance.cost_center.read")
+    parent = company_pk(CostCenter.objects.all(), required=False, allow_null=True)
+    department = company_pk(Department.objects.all(), required=False, allow_null=True)
 
     class Meta:
         model = CostCenter
@@ -40,6 +45,7 @@ class CostCenterSerializer(serializers.ModelSerializer):
 
 class PostingRuleSerializer(serializers.ModelSerializer):
     company = ScopedPrimaryKeyRelatedField(queryset=Company.objects.all(), read_action="finance.posting_rule.read")
+    account = company_pk(Account.objects.all())
     account_code = serializers.CharField(source="account.code", read_only=True)
 
     class Meta:
@@ -101,10 +107,10 @@ class JournalEntrySerializer(serializers.ModelSerializer):
 
 
 class ManualLineSerializer(serializers.Serializer):
-    account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.filter(is_active=True, is_group=False))
+    account = company_pk(Account.objects.filter(is_active=True, is_group=False))
     debit = serializers.DecimalField(max_digits=20, decimal_places=4, default=0, min_value=0)
     credit = serializers.DecimalField(max_digits=20, decimal_places=4, default=0, min_value=0)
-    cost_center = serializers.PrimaryKeyRelatedField(queryset=CostCenter.objects.all(), required=False, allow_null=True)
+    cost_center = company_pk(CostCenter.objects.all(), required=False, allow_null=True)
     partner = serializers.UUIDField(required=False, allow_null=True)
     description = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
 

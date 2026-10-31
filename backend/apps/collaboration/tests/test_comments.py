@@ -149,3 +149,17 @@ def test_activity_merges_comments_and_audit_events(author, api_for, ref, record,
     assert ("comment", "collaboration.comment.created") in kinds
     assert ("audit", "organization.department.updated") in kinds
     assert all("changes" not in e for e in response.json())
+
+
+def test_activity_shows_people_by_name_not_email(author, api_for, ref, record, ctx):
+    # Regression: audit entries were labelled with the actor's email while comments showed names.
+    audit.record(
+        "organization.department.updated",
+        ctx=ctx(author),
+        resource_type="organization.department",
+        resource_id=record.pk,
+        summary="Renamed",
+    )
+    entries = api_for(author).get("/api/v1/collaboration/activity/", ref).json()
+    event = next(e for e in entries if e["action"] == "organization.department.updated")
+    assert event["actor_label"] == "Asha Author"

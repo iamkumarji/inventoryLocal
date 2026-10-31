@@ -30,7 +30,7 @@ type Line = { item: string; itemLabel: string | null; units: (string | null | un
 const NONE = "__none__";
 const blank = (warehouse = ""): Line => ({ item: "", itemLabel: null, units: [], quantity: "", uom: "", estimated_rate: "", warehouse });
 
-export const PR_STATUSES: [string, string][] = [["", "Any status"], ["draft", "Draft"], ["submitted", "Submitted"], ["approved", "Approved"], ["rejected", "Rejected"]];
+export const PR_STATUSES: [string, string][] = [["", "Any status"], ["draft", "Draft"], ["submitted", "Submitted"], ["approved", "Approved"], ["rejected", "Rejected"], ["cancelled", "Cancelled"]];
 
 function NewRequisition({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const router = useRouter();

@@ -75,6 +75,7 @@ function NewInvoice({ initialSo, onClose }: { initialSo: string; onClose: () => 
 
 function NewReturn({ initialInvoice, onClose }: { initialInvoice: string; onClose: () => void }) {
   const router = useRouter();
+  const items = useItemIndex();
   const [invId, setInvId] = useState(initialInvoice);
   const [form, setForm] = useState({ warehouse: "", return_date: today(), reason: "" });
   const [lines, setLines] = useState<RetLine[]>([]);
@@ -110,7 +111,7 @@ function NewReturn({ initialInvoice, onClose }: { initialInvoice: string; onClos
         {inv && (
           <LineEditor idPrefix="sr-line" lines={lines} onChange={setLines} readOnlyCount columns={[
             { key: "item", label: "Item", width: "minmax(10rem,2fr)", wide: true, render: (_l, _u, _id, i) => (
-              <p className="num py-2 text-sm">HSN {inv.lines[i].hsn_code || "—"} <span className="text-muted-foreground">invoiced {trim(inv.lines[i].quantity)}, returned {trim(inv.lines[i].returned_quantity)}</span></p>) },
+              <p className="num py-2 text-sm">{items.get(inv.lines[i].item)?.code ?? `HSN ${inv.lines[i].hsn_code || "—"}`} <span className="text-muted-foreground">invoiced {trim(inv.lines[i].quantity)}, returned {trim(inv.lines[i].returned_quantity)}</span></p>) },
             { key: "qty", label: "Return", width: "7rem", render: (l, u, id) => <Input id={id} inputMode="decimal" className="num" value={l.quantity} onChange={(e) => u({ quantity: e.target.value })} /> },
             { key: "restock", label: "Restock", width: "6rem", render: (l, u, id) => (
               <label className="flex h-9 items-center gap-2 text-sm"><Checkbox id={id} checked={l.restock} onCheckedChange={(v) => u({ restock: v === true })} /> Saleable</label>) },

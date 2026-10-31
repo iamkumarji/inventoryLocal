@@ -68,7 +68,13 @@ export function CreditStatus({ status }: { status: string }) {
   return <DocStatus status={status} />;
 }
 
-/** Copy for denials the API deliberately keeps generic (the reason is logged server side). */
+/** 403 codes the API explains (a control on the caller's own action), with a readable detail. */
+const EXPLAINED_DENIALS = new Set(["self_approval", "maker_checker", "approval_limit", "sod"]);
+
+/**
+ * Copy for denials. `permission_denied` covers the generic ones the API keeps vague (the reason is logged
+ * server side); a code such as `maker_checker` overrides the server's explanation for that control.
+ */
 export type DenialHints = Partial<Record<"permission_denied" | "not_found" | string, string>>;
 
 /** Shows the API's problem detail (business rule code, field errors, listed problems) next to an action. */
@@ -82,6 +88,10 @@ export function ActionError({ error, hints, className }: { error: unknown; hints
     code = p.code && p.code !== p.type ? p.code : undefined;
     if (p.type === "version_conflict") {
       title = "Someone changed this record while you were working. The latest version is now shown; check it and try again.";
+    } else if (p.type === "permission_denied" && code && EXPLAINED_DENIALS.has(code)) {
+      // The server names the control that stopped the caller (maker-checker, self-approval, limit, SoD).
+      title = hints?.[code] ?? p.detail;
+      code = undefined;
     } else if (hints?.[p.type]) {
       title = hints[p.type]!;
     } else if (p.type === "permission_denied") {

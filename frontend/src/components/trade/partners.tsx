@@ -303,7 +303,7 @@ function SupplierSection({ p }: { p: Partner }) {
       <div className="grid gap-4 px-5 py-4">
         {can("partners.supplier.approve") && (
           <div className="grid gap-2">
-            <ActionError error={approve.error} hints={{ permission_denied: "You can't approve this supplier. The person who created a supplier can't approve it (maker-checker), and you need supplier approval rights." }} />
+            <ActionError error={approve.error} hints={{ permission_denied: "You can't approve this supplier: you need supplier approval rights for this company." }} />
             <div className="flex flex-wrap gap-2">
               {!profile.is_approved_vendor
                 ? <Button onClick={() => approve.mutate(true)} disabled={approve.isPending}>Approve supplier</Button>
@@ -313,7 +313,7 @@ function SupplierSection({ p }: { p: Partner }) {
         )}
         <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); saveTerms.mutate(undefined); }}>
           <ActionError error={saveTerms.error} />
-          <fieldset disabled={!can("partners.supplier.update")} className="grid min-w-0 gap-4 sm:grid-cols-4">
+          <fieldset disabled={!can("partners.supplier.update")} className="grid min-w-0 gap-4 sm:grid-cols-2">
             <Field id="s-terms" label="Payment terms (days)"><Input id="s-terms" inputMode="numeric" className="num" value={terms.payment_terms_days} onChange={(e) => setTerms({ ...terms, payment_terms_days: e.target.value.replace(/\D/g, "") })} /></Field>
             <Field id="s-lead" label="Lead time (days)"><Input id="s-lead" inputMode="numeric" className="num" value={terms.default_lead_time_days} onChange={(e) => setTerms({ ...terms, default_lead_time_days: e.target.value.replace(/\D/g, "") })} /></Field>
             <Field id="s-cur" label="Currency"><Input id="s-cur" maxLength={3} className="num uppercase" value={terms.currency} onChange={(e) => setTerms({ ...terms, currency: e.target.value.toUpperCase() })} /></Field>
@@ -424,7 +424,7 @@ function BankAccounts({ p }: { p: Partner }) {
               <DialogTitle>{reviewing?.approve ? "Verify bank account" : "Reject bank account"}</DialogTitle>
               <DialogDescription>{reviewing?.account.bank_name} {reviewing?.account.masked_number}. Verifying needs a fresh two-step verification and retires any older verified account.</DialogDescription>
             </DialogHeader>
-            <ActionError error={review.error} hints={{ permission_denied: "You can't review this account: whoever entered it can't verify it, and you need verification rights." }} />
+            <ActionError error={review.error} hints={{ permission_denied: "You can't review this account: you need bank account verification rights." }} />
             <Field id="b-note" label="Note" hint="How you checked it, e.g. cancelled cheque or bank letter."><Textarea id="b-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} /></Field>
             <DialogFooter><Button type="submit" disabled={review.isPending}>{reviewing?.approve ? "Verify" : "Reject"}</Button></DialogFooter>
           </form>

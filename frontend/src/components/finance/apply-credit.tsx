@@ -31,7 +31,7 @@ function ItemChoice({ name, items, value, onChange, credit }: {
   credit: boolean;
 }) {
   return (
-    <ul className="grid max-h-56 gap-1.5 overflow-y-auto pr-0.5">
+    <ul className="grid max-h-56 grid-cols-[minmax(0,1fr)] gap-1.5 overflow-y-auto pr-0.5">
       {items.map((i) => (
         <li key={i.id}>
           <label className={cn(
@@ -43,7 +43,7 @@ function ItemChoice({ name, items, value, onChange, credit }: {
               <span className="num block truncate font-medium">{i.number}</span>
               <span className="block truncate text-xs text-muted-foreground">{DOC_LABEL[i.document_type] ?? i.document_type} · {date(i.document_date)}</span>
             </span>
-            <span className="text-right">
+            <span className="shrink-0 text-right">
               <Amount value={credit ? absDecimal(i.outstanding) : i.outstanding} className="block font-semibold" />
               <span className="block text-xs text-muted-foreground">{credit ? "available" : "outstanding"}</span>
             </span>
@@ -154,11 +154,11 @@ export function ApplyCreditDialog({ kind, label = "Apply credit", variant = "out
                   : "There's nothing to settle. The credit stays on account until an invoice is posted."} />
             ) : (
               <>
-                <fieldset className="grid gap-2">
+                <fieldset className="grid min-w-0 gap-2">
                   <legend className="mb-2 text-sm font-medium">Credit to use</legend>
                   <ItemChoice name="credit" items={credits} value={credit?.id ?? ""} onChange={(i) => pick(i, debit)} credit />
                 </fieldset>
-                <fieldset className="grid gap-2">
+                <fieldset className="grid min-w-0 gap-2">
                   <legend className="mb-2 text-sm font-medium">Invoice to settle</legend>
                   <ItemChoice name="debit" items={debits} value={debit?.id ?? ""} onChange={(i) => pick(credit, i)} credit={false} />
                 </fieldset>

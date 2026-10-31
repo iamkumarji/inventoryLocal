@@ -137,6 +137,8 @@ function VersionCard({ bom, version, onChanged }: { bom: Bom; version: BomVersio
   });
   const mine = version.created_by === me.user.id;
   const operations = version.operations ?? [];
+  // Served by the API but not yet in the generated schema types.
+  const names = version as BomVersion & { created_by_name?: string | null; approved_by_name?: string | null };
   return (
     <Section
       title={<span className="flex flex-wrap items-center gap-2">Version {version.version_no} <StateBadge kind="bomVersion" value={version.status} /></span>}
@@ -189,7 +191,7 @@ function VersionCard({ bom, version, onChanged }: { bom: Bom; version: BomVersio
         </div>
       )}
       <p className="border-t px-5 py-2.5 text-xs text-muted-foreground">
-        Drafted by {person(version.created_by)}{version.approved_by && <> · approved by {person(version.approved_by, "another person")}</>}
+        Drafted by {person(version.created_by, names.created_by_name ?? undefined)}{version.approved_by && <> · approved by {person(version.approved_by, names.approved_by_name ?? "another person")}</>}
         {version.notes && <> · {version.notes}</>}
       </p>
     </Section>
@@ -257,7 +259,7 @@ export function BomDetail() {
         title={bom.name}
         meta={<><span className="num font-medium">{bom.code}</span><span className="text-muted-foreground">Makes <span className="num">{bom.item_code}</span></span><ActiveStatus active={bom.is_active ?? true} /></>}
         actions={can("manufacturing.bom.update") && <NewVersion bom={bom} onCreated={onChanged} />} />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="grid content-start gap-6">
           {versions.length === 0
             ? <Section><EmptyState icon={GitBranch} title="No versions yet" description="Add the first version with its components and routing." /></Section>

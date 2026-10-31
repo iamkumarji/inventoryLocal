@@ -219,7 +219,9 @@ def credit_check(order: SalesOrder, on: date) -> tuple[str, str]:
         + order.amount
     )
     if exposure > profile.credit_limit:
-        return "blocked", f"Exposure {exposure} exceeds the credit limit {profile.credit_limit}."
+        # Money in messages people read: two decimals, as on the documents (amounts are stored with four).
+        limit = profile.credit_limit.quantize(Q2)
+        return "blocked", f"Exposure {exposure.quantize(Q2)} exceeds the credit limit {limit}."
     return "ok", ""
 
 

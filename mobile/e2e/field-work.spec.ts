@@ -164,6 +164,7 @@ test("employee: expense with a receipt photo is created and submitted", async ({
   await (await chooser).setFiles({ name: "receipt.png", mimeType: "image/png", buffer: PNG });
   await shot(page, "07-expense");
   await page.getByTestId("save-expense").click();
+  await expect(page).toHaveURL(/\/queue/, { timeout: 20_000 });
   await outboxSettles(page);
   const claims = await apiGet<{ status: string; amount: string; lines: { receipt_reference: string }[] }[]>(page, "/api/v1/expenses/my/claims/");
   expect(claims).toHaveLength(1);
@@ -186,6 +187,7 @@ test("driver: proof of delivery with signed-note photo and location", async ({ p
   await shot(page, "08-proof");
   await noHorizontalScroll(page);
   await page.getByTestId("save-proof").click();
+  await expect(page).toHaveURL(/\/queue/, { timeout: 20_000 }); // queued (after the location lookup)
   await outboxSettles(page);
   const shipments = await apiGet<{ results: { status: string; proofs: { latitude: string; signature_document_id: string }[] }[] }>(
     page,

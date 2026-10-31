@@ -144,7 +144,12 @@ export function JournalDetail() {
             {e.reverses && <>This entry reverses <Link className="font-medium text-foreground underline underline-offset-4" href={`/finance/journals/${e.reverses}`}>the original entry</Link>.</>}
           </p>
         )}
-        <ActionError error={post.error} forbidden="You can't post this journal. The person who prepared it can't post it; a second person with posting rights must." />
+        <ActionError error={post.error}
+          forbidden="You can't post this journal. Journals are posted by a second person with posting rights, never by whoever prepared them."
+          hints={{
+            maker_checker: "You prepared this journal; a second person with posting rights must post it.",
+            sod: "You prepared this journal; a second person with posting rights must post it.",
+          }} />
         <Section title="Lines">
           <LedgerTable caption="Journal lines" columns={[
             { key: "no", header: "#" }, { key: "account", header: "Account" }, { key: "desc", header: "Description" },
@@ -160,7 +165,7 @@ export function JournalDetail() {
             {e.lines.map((l) => (
               <Row key={l.line_no}>
                 <Cell className="text-muted-foreground">{l.line_no}</Cell>
-                <Cell className="min-w-48"><span className="mr-2 text-muted-foreground">{l.account_code}</span><span className="font-sans">{l.account_name}</span></Cell>
+                <Cell className="min-w-48"><span className="mr-2 text-muted-foreground">{l.account_code}</span>{" "}<span className="font-sans">{l.account_name}</span></Cell>
                 <Cell className="font-sans text-muted-foreground">{l.description}</Cell>
                 <Cell className="font-sans">{l.partner_name ?? ""}</Cell>
                 <Cell>{ccName(l.cost_center)}</Cell>

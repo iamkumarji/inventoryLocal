@@ -12,7 +12,7 @@ import { Facts } from "@/components/people/actions";
 import { Amount, DocStatus } from "@/components/people/amount";
 import { ClaimLines } from "@/components/people/claim";
 import { SubmitClaim } from "@/components/people/claim-actions";
-import { ClaimLinesEditor, lineFromApi, lineToApi, type LineDraft } from "@/components/people/claim-form";
+import { AdvanceSelect, ClaimLinesEditor, lineFromApi, lineToApi, type LineDraft } from "@/components/people/claim-form";
 import { ClaimAttachments, UploadReceiptButton, useReceiptAccess } from "@/components/people/receipts";
 import { Card, SelfService } from "@/components/people/self-service";
 import { Button } from "@/components/ui/button";
@@ -35,13 +35,14 @@ function Editor({ claim, onDone }: { claim: Claim; onDone: () => void }) {
   const categories = useCategories();
   const { canUpload } = useReceiptAccess();
   const [purpose, setPurpose] = useState(claim.purpose);
+  const [advance, setAdvance] = useState(claim.advance ?? "");
   const [lines, setLines] = useState<LineDraft[]>(() => claim.lines.map(lineFromApi));
   const save = useMutation({
     mutationFn: () => {
       const byId = new Map((categories.data?.results ?? []).map((c) => [c.id, c]));
       return unwrap(api.PATCH("/api/v1/expenses/claims/{id}/", {
         params: { path: { id: claim.id } },
-        body: { purpose: purpose.trim(), lines: lines.map((l) => lineToApi(l, Boolean(byId.get(l.category)?.requires_vehicle))), version: claim.version },
+        body: { purpose: purpose.trim(), advance: advance || null, lines: lines.map((l) => lineToApi(l, Boolean(byId.get(l.category)?.requires_vehicle))), version: claim.version },
       }));
     },
     onSuccess: (data) => {
@@ -51,7 +52,11 @@ function Editor({ claim, onDone }: { claim: Claim; onDone: () => void }) {
       onDone();
     },
     onError: (error) => {
-      if (isApiError(error, "version_conflict")) queryClient.invalidateQueries({ queryKey: ["people", "claim", claim.id] });
+      // The editor reopens on the latest version (it is keyed by version), so say why in a toast.
+      if (isApiError(error, "version_conflict")) {
+        toast.error(errorText(error));
+        queryClient.invalidateQueries({ queryKey: ["people", "claim", claim.id] });
+      }
     },
   });
   const errors = isApiError(save.error) ? save.error.fieldErrors() : {};
@@ -61,11 +66,12 @@ function Editor({ claim, onDone }: { claim: Claim; onDone: () => void }) {
       <FormError message={save.error ? (errors.lines ?? errorText(save.error)) : undefined} />
       <Card className="p-4 sm:p-5">
         <Field id="edit-purpose" label="Purpose" error={errors.purpose}><Input id="edit-purpose" className="h-11" value={purpose} maxLength={300} onChange={(e) => setPurpose(e.target.value)} required /></Field>
+        <div className="mt-3 min-w-0 empty:hidden"><AdvanceSelect value={advance} onChange={setAdvance} error={errors.advance} /></div>
       </Card>
       <ClaimLinesEditor lines={lines} onChange={setLines} categories={categories.data?.results ?? []}
         lineExtra={canUpload ? (line, update) => (
-          <UploadReceiptButton claimId={claim.id} label={line.receipt_reference ? "Replace receipt file" : "Attach receipt file"}
-            onUploaded={(documentId) => update({ receipt_reference: documentId })} />
+          <UploadReceiptButton claimId={claim.id} label="Attach receipt file"
+            onUploaded={(_documentId, fileName) => { if (!line.receipt_reference.trim()) update({ receipt_reference: fileName.slice(0, 100) }); }} />
         ) : undefined} />
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>Discard changes</Button>
@@ -98,6 +104,11 @@ function MyClaim({ id }: { id: string }) {
         </div>
         <p className="num text-2xl font-semibold"><Amount value={c.amount} currency={c.currency} /></p>
         <p className="text-sm text-muted-foreground">{STEPS[c.status] ?? ""}</p>
+        {c.status === "rejected" && c.rejection_reason && (
+          <p className="rounded-md border border-status-rejected/30 bg-status-rejected/5 px-3 py-2 text-sm">
+            <span className="font-medium">Approver&apos;s comment:</span> {c.rejection_reason}
+          </p>
+        )}
         {open && (
           <div className="mt-2 grid gap-2 sm:flex sm:flex-wrap sm:items-start">
             <SubmitClaim claim={c} size="lg" />

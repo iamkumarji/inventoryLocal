@@ -4064,7 +4064,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Resolve a scanned code to an item, batch, serial or bin. */
+        /** @description Resolve a scanned or typed code to an item (barcode or item code), batch, serial or bin. */
         get: operations["inventory_scan_retrieve"];
         put?: never;
         post?: never;
@@ -6524,8 +6524,10 @@ export interface components {
             readonly id: string;
             /** Format: uuid */
             user?: string | null;
+            readonly user_name: string | null;
             /** Format: uuid */
             role?: string | null;
+            readonly role_name: string | null;
             permission?: components["schemas"]["PermissionEnum"];
             /** Format: uuid */
             readonly granted_by: string;
@@ -6714,6 +6716,7 @@ export interface components {
             readonly bank_reference: string;
             /** Format: uuid */
             readonly payment_journal: string | null;
+            readonly rejection_reason: string;
         };
         AdvanceRequest: {
             /** Format: decimal */
@@ -7372,6 +7375,7 @@ export interface components {
             readonly bank_reference: string;
             /** Format: uuid */
             readonly payment_journal: string | null;
+            readonly rejection_reason: string;
         };
         ClaimLine: {
             /** Format: uuid */
@@ -7961,6 +7965,7 @@ export interface components {
             readonly sha256: string;
             /** Format: uuid */
             readonly uploaded_by: string;
+            readonly uploaded_by_name: string | null;
             /** Format: date-time */
             readonly uploaded_at: string;
         };
@@ -13248,11 +13253,13 @@ export interface components {
             readonly effective_to: string | null;
             /** Format: uuid */
             readonly approved_by: string | null;
+            readonly approved_by_name: string | null;
             notes?: string;
             components: components["schemas"]["Component"][];
             operations?: components["schemas"]["Operation"][];
             /** Format: uuid */
             readonly created_by: string | null;
+            readonly created_by_name: string | null;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -19899,7 +19906,10 @@ export interface operations {
     hr_payroll_runs_reverse_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Unique per user action; a retry with the same key replays the stored response. */
+                "Idempotency-Key"?: string;
+            };
             path: {
                 /** @description A UUID string identifying this payroll run. */
                 id: string;

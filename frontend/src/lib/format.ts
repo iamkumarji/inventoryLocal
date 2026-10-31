@@ -7,7 +7,10 @@ export function money(value: string | null | undefined, currency = "INR"): strin
   if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
   if (Number.isNaN(n)) return value;
-  return currency === "INR" ? `₹${inr.format(n)}` : `${currency} ${inr.format(n)}`;
+  // The sign goes before the currency symbol: "-₹50,000.00", not "₹-50,000.00".
+  const sign = n < 0 ? "-" : "";
+  const amount = inr.format(Math.abs(n));
+  return currency === "INR" ? `${sign}₹${amount}` : `${sign}${currency} ${amount}`;
 }
 
 export function dateTime(value: string | null | undefined): string {

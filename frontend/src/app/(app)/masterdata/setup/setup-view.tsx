@@ -10,7 +10,7 @@ import { Field } from "@/components/erp/field";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { ActiveStatus } from "@/components/erp/status";
 import { EmptyState } from "@/components/erp/states";
-import { ActionError, ItemPicker, type ItemOption } from "@/components/inventory/bits";
+import { ActionError, ItemPicker, type ItemOption, useSeedOnOpen } from "@/components/inventory/bits";
 import { dec, isDecimal } from "@/components/inventory/decimal";
 import { bannerError, fieldErrors } from "@/components/inventory/problem";
 import { Button } from "@/components/ui/button";
@@ -63,18 +63,16 @@ function Check({ id, label, checked, onChange }: { id: string; label: string; ch
 
 function UomDialog({ uom, open, onOpenChange }: { uom: Uom | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const queryClient = useQueryClient();
-  const [seen, setSeen] = useState<Uom | null | undefined>(undefined);
   const [d, setD] = useState({ code: "", name: "", kind: "count", decimals: "0", is_active: true });
-  if (open && seen !== uom) {
-    setSeen(uom);
-    setD(uom ? { code: uom.code, name: uom.name, kind: uom.kind, decimals: String(uom.decimals ?? 3), is_active: uom.is_active ?? true } : { code: "", name: "", kind: "count", decimals: "0", is_active: true });
-  }
   const save = useMutation({
     mutationFn: () => uom
       ? unwrap(api.PATCH("/api/v1/masterdata/uoms/{id}/", { params: { path: { id: uom.id } }, body: { name: d.name, decimals: Number(d.decimals), is_active: d.is_active } }))
       : unwrap(api.POST("/api/v1/masterdata/uoms/", { body: { code: d.code.trim(), name: d.name, kind: d.kind as Uom["kind"], decimals: Number(d.decimals) } })),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["masterdata", "uoms"] }); toast("Unit saved"); onOpenChange(false); },
   });
+  useSeedOnOpen(open, uom, () => {
+    setD(uom ? { code: uom.code, name: uom.name, kind: uom.kind, decimals: String(uom.decimals ?? 3), is_active: uom.is_active ?? true } : { code: "", name: "", kind: "count", decimals: "0", is_active: true });
+  }, save.reset);
   const e = fieldErrors(save.error);
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title={uom ? `Edit ${uom.code}` : "New unit of measure"} onSubmit={() => save.mutate()} pending={save.isPending}
@@ -129,19 +127,18 @@ function Uoms() {
 function ConversionDialog({ conv, open, onOpenChange }: { conv: UomConversion | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const queryClient = useQueryClient();
   const uoms = useUoms();
-  const [seen, setSeen] = useState<UomConversion | null | undefined>(undefined);
   const [d, setD] = useState<{ item: ItemOption | null; from_uom: string; to_uom: string; factor: string }>({ item: null, from_uom: "", to_uom: "", factor: "" });
   const [localError, setLocalError] = useState<string | null>(null);
-  if (open && seen !== conv) {
-    setSeen(conv);
-    setD(conv ? { item: null, from_uom: conv.from_uom, to_uom: conv.to_uom, factor: dec.normalize(conv.factor) } : { item: null, from_uom: "", to_uom: "", factor: "" });
-  }
   const save = useMutation({
     mutationFn: () => conv
       ? unwrap(api.PATCH("/api/v1/masterdata/uom-conversions/{id}/", { params: { path: { id: conv.id } }, body: { factor: d.factor } }))
       : unwrap(api.POST("/api/v1/masterdata/uom-conversions/", { body: { item: d.item?.id ?? null, from_uom: d.from_uom, to_uom: d.to_uom, factor: d.factor } })),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["masterdata", "conversions"] }); toast("Conversion saved"); onOpenChange(false); },
   });
+  useSeedOnOpen(open, conv, () => {
+    setD(conv ? { item: null, from_uom: conv.from_uom, to_uom: conv.to_uom, factor: dec.normalize(conv.factor) } : { item: null, from_uom: "", to_uom: "", factor: "" });
+    setLocalError(null);
+  }, save.reset);
   const e = fieldErrors(save.error);
   const code = (id: string) => uoms.data?.find((u) => u.id === id)?.code ?? "?";
   const uomSelect = (key: "from_uom" | "to_uom", label: string) => (
@@ -215,12 +212,7 @@ function ItemCode({ id }: { id: string }) {
 function CategoryDialog({ cat, open, onOpenChange }: { cat: ItemCategory | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const queryClient = useQueryClient();
   const categories = useCategories();
-  const [seen, setSeen] = useState<ItemCategory | null | undefined>(undefined);
   const [d, setD] = useState({ code: "", name: "", parent: "", posting_group: "", is_active: true });
-  if (open && seen !== cat) {
-    setSeen(cat);
-    setD(cat ? { code: cat.code, name: cat.name, parent: cat.parent ?? "", posting_group: cat.posting_group, is_active: cat.is_active ?? true } : { code: "", name: "", parent: "", posting_group: "", is_active: true });
-  }
   const save = useMutation({
     mutationFn: () => cat
       ? unwrap(api.PATCH("/api/v1/masterdata/item-categories/{id}/", { params: { path: { id: cat.id } }, body: { name: d.name, parent: d.parent || null, posting_group: d.posting_group.trim(), is_active: d.is_active, version: cat.version } as never }))
@@ -228,6 +220,9 @@ function CategoryDialog({ cat, open, onOpenChange }: { cat: ItemCategory | null;
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["masterdata", "categories"] }); toast("Category saved"); onOpenChange(false); },
     onError: (error) => { if (isApiError(error, "version_conflict")) queryClient.invalidateQueries({ queryKey: ["masterdata", "categories"] }); },
   });
+  useSeedOnOpen(open, cat, () => {
+    setD(cat ? { code: cat.code, name: cat.name, parent: cat.parent ?? "", posting_group: cat.posting_group, is_active: cat.is_active ?? true } : { code: "", name: "", parent: "", posting_group: "", is_active: true });
+  }, save.reset);
   const e = fieldErrors(save.error);
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title={cat ? `Edit ${cat.code}` : "New item category"} onSubmit={() => save.mutate()} pending={save.isPending}
@@ -278,19 +273,18 @@ function Categories() {
 
 function HsnDialog({ hsn, open, onOpenChange }: { hsn: HsnCode | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const queryClient = useQueryClient();
-  const [seen, setSeen] = useState<HsnCode | null | undefined>(undefined);
   const [d, setD] = useState({ code: "", description: "", gst_rate: "", is_service: false, is_active: true });
   const [localError, setLocalError] = useState<string | null>(null);
-  if (open && seen !== hsn) {
-    setSeen(hsn);
-    setD(hsn ? { code: hsn.code, description: hsn.description, gst_rate: dec.normalize(hsn.gst_rate), is_service: hsn.is_service ?? false, is_active: hsn.is_active ?? true } : { code: "", description: "", gst_rate: "", is_service: false, is_active: true });
-  }
   const save = useMutation({
     mutationFn: () => hsn
       ? unwrap(api.PATCH("/api/v1/masterdata/hsn-codes/{id}/", { params: { path: { id: hsn.id } }, body: { description: d.description, gst_rate: d.gst_rate, is_service: d.is_service, is_active: d.is_active } }))
       : unwrap(api.POST("/api/v1/masterdata/hsn-codes/", { body: { code: d.code.trim(), description: d.description, gst_rate: d.gst_rate, is_service: d.is_service } })),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["masterdata", "hsn"] }); toast("HSN code saved"); onOpenChange(false); },
   });
+  useSeedOnOpen(open, hsn, () => {
+    setD(hsn ? { code: hsn.code, description: hsn.description, gst_rate: dec.normalize(hsn.gst_rate), is_service: hsn.is_service ?? false, is_active: hsn.is_active ?? true } : { code: "", description: "", gst_rate: "", is_service: false, is_active: true });
+    setLocalError(null);
+  }, save.reset);
   const e = fieldErrors(save.error);
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title={hsn ? `Edit HSN ${hsn.code}` : "New HSN / SAC code"} pending={save.isPending} error={save.error}

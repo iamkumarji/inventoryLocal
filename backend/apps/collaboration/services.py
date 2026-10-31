@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -405,20 +406,29 @@ def activity(ctx: ActorContext, resource_type: str, resource_id: str, limit: int
         .select_related("author")
         .order_by("-created_at")[:limit]
     ]
+    events = list(
+        AuditEvent.objects.filter(
+            resource_type=resource_type, resource_id=rid, outcome=AuditEvent.Outcome.SUCCESS
+        ).order_by("-occurred_at")[:limit]
+    )
+    # Audit events store the actor's email at the time; show people by name, as comments do.
+    names = dict(
+        get_user_model()
+        .objects.filter(pk__in={e.actor_id for e in events if e.actor_id})
+        .values_list("pk", "full_name")
+    )
     entries += [
         {
             "kind": "audit",
             "id": e.pk,
             "occurred_at": e.occurred_at,
             "actor_id": e.actor_id,
-            "actor_label": e.actor_label,
+            "actor_label": names.get(e.actor_id) or e.actor_label,
             "action": e.action,
             "summary": e.summary,
             "edited_at": None,
         }
-        for e in AuditEvent.objects.filter(
-            resource_type=resource_type, resource_id=rid, outcome=AuditEvent.Outcome.SUCCESS
-        ).order_by("-occurred_at")[:limit]
+        for e in events
     ]
     entries.sort(key=lambda item: item["occurred_at"], reverse=True)
     return entries[:limit]

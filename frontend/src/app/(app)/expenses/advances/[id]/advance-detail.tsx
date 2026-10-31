@@ -37,6 +37,7 @@ export function AdvanceDetail() {
           ["Paid on", a.paid_on ? date(a.paid_on) : "—"],
           ["Bank reference", a.bank_reference || "—"],
           ["Requested", dateTime(a.created_at)],
+          ...(a.status === "rejected" && a.rejection_reason ? [["Rejection reason", a.rejection_reason] as [string, React.ReactNode]] : []),
         ]} />
       </Section>
     </>

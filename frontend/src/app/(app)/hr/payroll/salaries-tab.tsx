@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
 import {
-  SENSITIVE_QUERY, errorText, isMoney, sumMoney, today, useSalaryComponents, useSalaryStructures, type EmployeeSalary, type SalaryStructure,
+  SENSITIVE_QUERY, errorText, isMoney, moneyInput, sumMoney, today, useSalaryComponents, useSalaryStructures, type EmployeeSalary, type SalaryStructure,
 } from "@/lib/api/people";
 import { date, money } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -49,7 +49,7 @@ function AmountsEditor({ structure, amounts, onChange }: {
         <div key={line.component} className="grid grid-cols-[minmax(0,1fr)_9rem] items-center gap-3">
           <label htmlFor={`amt-${line.component}`} className="text-sm">{component!.name} <span className="text-muted-foreground">({component!.code}){component!.is_basic ? " · basic" : ""}</span></label>
           <Input id={`amt-${line.component}`} inputMode="decimal" className="num text-right" value={amounts[line.component] ?? ""}
-            placeholder={line.amount ?? "0.00"} onChange={(e) => onChange({ ...amounts, [line.component]: e.target.value })}
+            placeholder={moneyInput(line.amount) || "0"} onChange={(e) => onChange({ ...amounts, [line.component]: e.target.value })}
             aria-invalid={Boolean(amounts[line.component]) && !isMoney(amounts[line.component])} />
         </div>
       ))}
@@ -120,7 +120,7 @@ function EditSalary({ salary }: { salary: EmployeeSalary }) {
   const queryClient = useQueryClient();
   const structures = useSalaryStructures();
   const [open, setOpen] = useState(false);
-  const initial = () => Object.fromEntries(salary.lines.map((l) => [l.component, l.amount]));
+  const initial = () => Object.fromEntries(salary.lines.map((l) => [l.component, moneyInput(l.amount)]));
   const [amounts, setAmounts] = useState<Record<string, string>>(initial);
   const [notes, setNotes] = useState(salary.notes ?? "");
   const structure = structures.data?.results.find((s) => s.id === salary.structure);

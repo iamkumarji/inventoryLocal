@@ -222,7 +222,7 @@ function ExpiringPanel() {
       <ul className="grid gap-1.5 px-5 py-3 text-sm">
         {query.data.map((e) => (
           <li key={`${e.id}-${e.document}`} className="flex flex-wrap items-center justify-between gap-2">
-            <span>{e.kind === "vehicle" ? <CarFront className="mr-1.5 inline size-4" aria-hidden /> : <UserRound className="mr-1.5 inline size-4" aria-hidden />}{e.name} · {humanize(e.document)}</span>
+            <span>{e.kind === "vehicle" ? <CarFront className="mr-1.5 inline size-4" aria-hidden /> : <UserRound className="mr-1.5 inline size-4" aria-hidden />}{e.name} · {e.document === "puc" ? "PUC" : humanize(e.document)}</span>
             <ExpiryDate value={e.expires_on} />
           </li>
         ))}

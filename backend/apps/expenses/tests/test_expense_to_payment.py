@@ -398,3 +398,37 @@ def test_claim_api_self_service(setup, api_for):
         f"/api/v1/expenses/claims/{body['id']}/pay/", {"paid_on": str(TODAY()), "bank_reference": "X"}, format="json"
     )
     assert pay.status_code == 400  # Idempotency-Key is required for payments
+
+
+def test_rejected_claim_shows_the_reason_and_lines_only_take_own_org_categories(setup, api_for, make_company):
+    from apps.organization.models import Organization
+
+    client = api_for(setup["driver"])
+    stranger = Organization.objects.create(code="OTHER", name="Other Org")
+    foreign = ExpenseCategory.objects.create(company=make_company(organization=stranger), code="FOR", name="Foreign")
+    body = {
+        "claim_date": str(TODAY()),
+        "purpose": "Client visit",
+        "lines": [{"category": str(foreign.pk), "expense_date": str(TODAY()), "description": "Taxi", "amount": "300"}],
+    }
+    refused = client.post("/api/v1/expenses/claims/", body, format="json")
+    assert refused.status_code == 400 and refused.json()["errors"][0]["field"] == "lines.0.category"
+
+    body["lines"][0]["category"] = str(setup["cat"]["general"].pk)
+    claim = client.post("/api/v1/expenses/claims/", body, format="json").json()
+    assert claim["rejection_reason"] == ""
+    claim = client.post(f"/api/v1/expenses/claims/{claim['id']}/submit/", {"version": claim["version"]}, format="json")
+    claim = claim.json()
+    decided = api_for(setup["manager"]).post(
+        f"/api/v1/expenses/claims/{claim['id']}/decide/",
+        {"approve": False, "comment": "Attach the taxi bill.", "version": claim["version"]},
+        format="json",
+    )
+    assert decided.status_code == 200 and decided.json()["rejection_reason"] == "Attach the taxi bill."
+    mine = client.get("/api/v1/expenses/my/claims/").json()
+    assert mine[0]["status"] == "rejected" and mine[0]["rejection_reason"] == "Attach the taxi bill."
+    # Once resubmitted the old reason no longer shows.
+    again = client.post(
+        f"/api/v1/expenses/claims/{claim['id']}/submit/", {"version": mine[0]["version"]}, format="json"
+    )
+    assert again.status_code == 200 and again.json()["rejection_reason"] == ""

@@ -1,19 +1,24 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Check, Send, Stamp } from "lucide-react";
+import { Ban, BookOpen, Check, Send, Stamp } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable, type Column } from "@/components/erp/data-table";
+import { Field } from "@/components/erp/field";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { ErrorState, PageSkeleton } from "@/components/erp/states";
 import { useStepUp } from "@/components/shell/step-up";
 import { ActionError, Facts, NextStep, Who } from "@/components/inventory/bits";
+import { bannerError, fieldErrors } from "@/components/inventory/problem";
 import { signedQty } from "@/components/inventory/decimal";
 import { InvStatus } from "@/components/inventory/status";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { api, idempotencyKey, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
 import { ADJUSTMENT_REASONS, useLocations, useWarehouses, type Adjustment } from "@/lib/api/inventory";
@@ -25,9 +30,48 @@ type Line = Adjustment["lines"][number];
 
 const DENIED: Record<Verb, string> = {
   submit: "You can't submit adjustments for this warehouse.",
-  approve: "You can't approve this adjustment. The person who created or submitted it can't approve it (maker-checker), and its value must be within your approval limit.",
+  approve: "You can't approve adjustments for this warehouse.",
   post: "You can't post adjustments for this warehouse.",
 };
+
+function CancelDialog({ adjustment, open, onOpenChange, onCancelled }: {
+  adjustment: Adjustment; open: boolean; onOpenChange: (o: boolean) => void; onCancelled: (a: Adjustment) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const cancel = useMutation({
+    mutationFn: () => unwrap(api.POST("/api/v1/inventory/adjustments/{id}/cancel/", {
+      params: { path: { id: adjustment.id } }, body: { reason: reason.trim(), version: adjustment.version },
+    })),
+    onSuccess: (a) => { onCancelled(a); onOpenChange(false); setReason(""); },
+  });
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setLocalError(null); cancel.reset(); } }}>
+      <DialogContent className="sm:max-w-md">
+        <form className="grid gap-4" onSubmit={(e) => {
+          e.preventDefault();
+          const problem = reason.trim() ? null : "Say why the adjustment is cancelled.";
+          setLocalError(problem);
+          if (!problem) cancel.mutate();
+        }}>
+          <DialogHeader>
+            <DialogTitle>Cancel this adjustment?</DialogTitle>
+            <DialogDescription>Nothing was posted, so no stock changes. The adjustment stays on record as cancelled.</DialogDescription>
+          </DialogHeader>
+          <Field id="adj-cancel-reason" label="Reason" error={fieldErrors(cancel.error).reason}>
+            <Textarea id="adj-cancel-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Entered in error, duplicate…" />
+          </Field>
+          {localError && <p role="alert" className="text-sm text-destructive">{localError}</p>}
+          <ActionError error={bannerError(cancel.error)} denied="You can't cancel adjustments for this warehouse." />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Keep it</Button>
+            <Button type="submit" variant="destructive" disabled={cancel.isPending}>Cancel adjustment</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function AdjustmentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -38,6 +82,7 @@ export function AdjustmentDetail() {
   const key = ["inventory", "adjustment", id];
   const query = useQuery({ queryKey: key, queryFn: () => unwrap(api.GET("/api/v1/inventory/adjustments/{id}/", { params: { path: { id } } })) });
   const locations = useLocations(query.data?.warehouse, can("inventory.location.read"));
+  const [cancelling, setCancelling] = useState(false);
   const locationCode = (loc: string | null | undefined) => (loc ? locations.data?.results.find((l) => l.id === loc)?.code ?? "Bin" : "—");
 
   const act = useMutation({
@@ -80,6 +125,7 @@ export function AdjustmentDetail() {
         <NextStep title={a.status === "rejected" ? "Rejected: correct and resubmit" : "Submit for approval"}
           body="Submitting values the adjustment at current cost and sends it to an approver. If your company has an approval route for adjustments, it appears in their Approvals inbox.">
           <Button onClick={() => act.mutate("submit")} disabled={act.isPending}><Send aria-hidden /> Submit for approval</Button>
+          <Button variant="outline" onClick={() => setCancelling(true)} disabled={act.isPending}><Ban aria-hidden /> Cancel adjustment</Button>
         </NextStep>
       ) : <NextStep title="Draft" body="Someone with permission to update adjustments needs to submit it." />;
     }
@@ -98,13 +144,14 @@ export function AdjustmentDetail() {
         </NextStep>
       ) : <NextStep title="Approved" body="Someone with permission to post adjustments needs to post it." />;
     }
+    if (a.status === "cancelled") return <NextStep title="Cancelled" body="This adjustment was withdrawn before posting. Stock didn't change." />;
     return null;
   })();
 
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Adjustments", href: "/inventory/adjustments" }, { label: a.number || "Draft" }]}
+        crumbs={[{ label: "Adjustments", href: "/inventory/adjustments" }, { label: a.number || "Unposted" }]}
         title={a.number ? <span className="num">{a.number}</span> : "Unposted adjustment"}
         meta={<>
           <InvStatus kind="doc" status={a.status} />
@@ -117,7 +164,7 @@ export function AdjustmentDetail() {
         )}
       />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-6">
           {next && (
             <Section>
               <div className="grid gap-3 px-5 py-4">
@@ -125,6 +172,13 @@ export function AdjustmentDetail() {
                 <ActionError error={act.error} denied={act.variables ? DENIED[act.variables] : undefined} />
               </div>
             </Section>
+          )}
+          {a.status !== "posted" && a.status !== "cancelled" && can("inventory.stock_adjustment.update") && (
+            <CancelDialog adjustment={a} open={cancelling} onOpenChange={setCancelling} onCancelled={(doc) => {
+              queryClient.setQueryData(key, doc);
+              queryClient.invalidateQueries({ queryKey: ["inventory", "adjustments"] });
+              toast("Adjustment cancelled");
+            }} />
           )}
           <Section title="Lines" description="Positive quantities add stock, negative remove it.">
             <DataTable columns={columns} rows={a.lines} caption="Adjustment lines" />

@@ -192,28 +192,23 @@ test("setup: admin enables HR and expenses, creates roles and people", async ({ 
   const clean = watchConsole(page);
   await login(page, admin);
 
-  // Modules ship disabled. Enabling is an audited admin action. NOTE: PATCH /admin/feature-flags/{id}/
-  // currently answers 500 (backend bug, reported), so the isolated stack switches these two flags on
-  // beforehand and only flags that are still off are patched here.
+  // Modules ship disabled. Enabling is an audited admin action that changes this organization only.
+  // Documents is on too: employees attach receipt files to their claims.
   const flags = await ok(page, admin, "GET", "/api/v1/admin/feature-flags/?page_size=200");
-  for (const key of ["module.hr", "module.expenses"]) {
+  for (const key of ["module.hr", "module.expenses", "module.documents"]) {
     const flag = (flags.results ?? flags).find((f: { key: string }) => f.key === key);
-    if (!flag.enabled_default) await ok(page, admin, "PATCH", `/api/v1/admin/feature-flags/${flag.id}/`, { enabled_default: true });
+    if (!flag.enabled_default) {
+      const patched = await ok(page, admin, "PATCH", `/api/v1/admin/feature-flags/${flag.id}/`, { enabled_default: true });
+      expect(patched.enabled_default).toBe(true);
+    }
   }
 
-  // Ownership policies (templates) must be active; add one for employees cancelling their own leave.
+  // Ownership policies (templates) must be active. allow_own_leave_request now includes cancelling.
   const policies = await ok(page, admin, "GET", "/api/v1/authorization/policies/?page_size=200");
   for (const code of ["allow_own_payslip", "allow_own_leave_request", "allow_own_expense_claim"]) {
     const p = policies.results.find((x: { code: string }) => x.code === code);
     if (!p.is_active) await ok(page, admin, "PATCH", `/api/v1/authorization/policies/${p.id}/`, { is_active: true, version: p.version });
-  }
-  if (!policies.results.some((x: { code: string }) => x.code === "allow_own_leave_cancel_e2e")) {
-    await ok(page, admin, "POST", "/api/v1/authorization/policies/", {
-      code: "allow_own_leave_cancel_e2e", effect: "allow", priority: 100, is_active: true,
-      description: "E2E: employees can cancel their own leave requests (draft, rejected, or approved before it starts).",
-      actions: ["hr.leave_request.cancel"], resource_types: ["hr.leave_request"],
-      condition: { attr: "resource.employee_id", op: "eq", value: { attr: "subject.employee_id" } },
-    });
+    if (code === "allow_own_leave_request") expect(p.actions).toContain("hr.leave_request.cancel");
   }
 
   const me = await ok(page, admin, "GET", "/api/v1/auth/me/");
@@ -229,14 +224,15 @@ test("setup: admin enables HR and expenses, creates roles and people", async ({ 
     e2e_payroll_officer: {
       name: "Payroll officer (E2E)", mfa: true,
       perms: ["hr.salary.create", "hr.salary.read", "hr.salary.update", "hr.payroll_run.create", "hr.payroll_run.read", "hr.payroll_run.update", "hr.payroll_run.post",
-        "hr.payslip.read", "hr.employee.read", "hr.salary_structure.read"],
+        "hr.payroll_run.reverse", "hr.payslip.read", "hr.employee.read", "hr.salary_structure.read"],
     },
     e2e_finance_head: {
       name: "Finance head (E2E)", mfa: true,
       perms: ["authorization.approval_limit.read", "authorization.approval_limit.manage", "hr.payroll_run.read", "hr.payroll_run.approve", "hr.payroll_run.reject",
         "expenses.expense_claim.read", "expenses.expense_claim.approve", "expenses.expense_claim.reject", "expenses.employee_advance.read",
         "expenses.employee_advance.approve", "expenses.employee_advance.reject", "expenses.expense_category.create", "expenses.expense_category.read",
-        "expenses.expense_category.update", "expenses.fuel_log.create", "expenses.fuel_log.read", "hr.employee.read"],
+        "expenses.expense_category.update", "expenses.fuel_log.create", "expenses.fuel_log.read", "hr.employee.read",
+        "documents.document.read", "documents.document.download"],
     },
     e2e_accounts_payer: {
       name: "Accounts payer (E2E)", mfa: true,
@@ -244,9 +240,9 @@ test("setup: admin enables HR and expenses, creates roles and people", async ({ 
     },
     e2e_employee: {
       name: "Employee self-service (E2E)", mfa: false,
-      // The template's own-record permissions, plus reading leave types and expense categories, which
-      // self-service needs to show names and pick categories (see report: API gap).
-      perms: ["expenses.expense_claim.create", "expenses.employee_advance.create", "hr.leave_request.create", "hr.leave_type.read", "expenses.expense_category.read"],
+      // The Employee (self-service) template's permissions; own records come through the ABAC policies.
+      perms: ["expenses.expense_claim.create", "expenses.employee_advance.create", "expenses.expense_category.read", "hr.leave_type.read",
+        "documents.document.create", "hr.leave_request.create"],
     },
   };
   const roleIds: Record<string, string> = {};
@@ -321,6 +317,14 @@ test("HR manager adds an employee, leave type and balances; salary set-up data i
   await shot(page, "60-employee-detail");
   state.ids["employee:priya"] = page.url().split("/").pop()!;
 
+  // Edit the record: the change is saved and survives a reload; sensitive numbers stay masked.
+  await page.getByLabel("Designation").fill("Senior planning engineer");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Employee saved")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Designation")).toHaveValue("Senior planning engineer");
+  await expect(page.getByLabel("PAN", { exact: true })).toHaveAttribute("placeholder", /On file: XXXXX/);
+
   // The HR manager's own employee record (they also use self-service) and the department id.
   const depts = await ok(page, hr, "GET", "/api/v1/organization/departments/?search=PROD");
   const dept = depts.results.find((d: { code: string }) => d.code === "PROD").id;
@@ -328,6 +332,22 @@ test("HR manager adds an employee, leave type and balances; salary set-up data i
     code: "E60-002", full_name: hr.name, department: dept, user: state.ids["user:hr"], date_of_joining: `${YEAR}-04-01`, designation: "HR manager",
   });
   state.ids["employee:hr"] = own.id;
+
+  // A contractor who left before October: the exit is recorded on the screen and the record locks.
+  const leaver = await ok(page, hr, "POST", "/api/v1/hr/employees/", {
+    code: "E60-003", full_name: "Rohan Desai (E2E contractor)", department: dept, date_of_joining: `${YEAR}-04-01`, designation: "Contract fitter",
+  });
+  await page.goto(`/hr/employees/${leaver.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Rohan Desai (E2E contractor)" })).toBeVisible();
+  await page.getByRole("button", { name: "Record exit" }).click();
+  await page.getByRole("dialog").getByLabel("Last working day").fill(`${YEAR}-09-30`);
+  await shot(page, "60-employee-exit");
+  await page.getByRole("dialog").getByRole("button", { name: "Record exit" }).click();
+  await expect(page.getByText("marked as exited")).toBeVisible();
+  await expect(page.getByText("Exited", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(`30 Sep ${YEAR}`).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Record exit" })).toHaveCount(0);
 
   // Leave type through the screen; balances through the screen (Priya) and the API (Anita).
   await page.goto("/hr/leave?tab=types");
@@ -405,6 +425,23 @@ test("HR manager adds an employee, leave type and balances; salary set-up data i
   await expect(page.getByRole("row", { name: /E60-001/ }).first()).toContainText("Present");
   await shot(page, "60-attendance");
 
+  // One day recorded by hand (today, outside the October payroll period).
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  await page.goto(`/hr/attendance?period=${todayIso.slice(0, 7)}`);
+  await page.getByRole("button", { name: "Record a day" }).click();
+  const day = page.getByRole("dialog");
+  await pickEmployee(page, day.getByRole("combobox", { name: "Employee" }), "E60-001");
+  await day.getByLabel("Date").fill(todayIso);
+  await pick(page, day.getByLabel("Status"), "Half day");
+  await day.getByLabel("Check-in").fill("09:15");
+  await day.getByLabel("Check-out").fill("13:30");
+  await day.getByLabel("Remarks").fill("Afternoon at the dentist");
+  await day.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Attendance saved")).toBeVisible();
+  await expect(page.getByRole("row", { name: /E60-001/ }).first()).toContainText("Half day");
+  await expect(page.getByRole("row", { name: /E60-001/ }).first()).toContainText("09:15–13:30");
+
   for (const [name, url, heading] of [["60-employees", "/hr/employees", "Employees"], ["60-attendance", `/hr/attendance?period=${YEAR}-10`, "Attendance"],
     ["60-leave-types", "/hr/leave?tab=types", "Leave"], ["60-payroll-components", "/hr/payroll?tab=components", "Payroll"]] as const) {
     await mobile(page, name, url, heading);
@@ -457,6 +494,8 @@ test("employee applies for leave in self-service; the manager approves; nobody a
   const mine = await ok(hr.page, state.users.hr, "GET", `/api/v1/hr/leave-requests/?employee=${state.ids["employee:hr"]}&status=submitted`);
   const refused = await call(hr.page, state.users.hr, "POST", `/api/v1/hr/leave-requests/${mine.results[0].id}/decide/`, { approve: true, version: mine.results[0].version });
   expect(refused.status).toBe(403);
+  expect(refused.body.code).toBe("self_approval");
+  expect(refused.body.detail).toMatch(/can't approve or decide something you created or submitted/);
 
   // Priya's first request: approved. Her second: rejected with a reason.
   const priyaRow = (text: string) => hr.page.getByRole("row", { name: /Priya Kulkarni/ }).filter({ hasText: text });
@@ -519,7 +558,7 @@ test("payroll: salaries behind step-up, run computed and submitted, approved by 
   await stepUp.getByRole("button", { name: "Verify and continue" }).click();
   await expect(p.page.getByText("No salaries assigned")).toBeVisible();
 
-  for (const [code, basic] of [["E60-001", "30000"], ["E60-002", "50000"]] as const) {
+  for (const [code, basic] of [["E60-001", "30000"], ["E60-002", "45000"]] as const) {
     await p.page.getByRole("button", { name: "Assign salary" }).click();
     const d = p.page.getByRole("dialog");
     await pickEmployee(p.page, d.getByRole("combobox", { name: "Employee" }), code);
@@ -530,6 +569,16 @@ test("payroll: salaries behind step-up, run computed and submitted, approved by 
     await passStepUp(p.page, officer, p.page.getByRole("row", { name: new RegExp(code) }));
   }
   await expect(p.page.getByRole("row", { name: /E60-001/ })).toContainText("₹30,000.00");
+  // E60-002's basic was keyed wrong: correct it before any payroll uses it (the edit form opens with
+  // the stored amounts, which arrive with four decimals).
+  await p.page.getByRole("button", { name: "Edit salary of E60-002" }).click();
+  const edit = p.page.getByRole("dialog");
+  await expect(edit.getByLabel(/Basic pay/)).toHaveValue("45000");
+  await edit.getByLabel(/Basic pay/).fill("50000");
+  await edit.getByLabel("Notes").fill("Corrected basic per offer letter");
+  await edit.getByRole("button", { name: "Save" }).click();
+  await passStepUp(p.page, officer, p.page.getByText("Salary updated"));
+  await expect(p.page.getByRole("row", { name: /E60-002/ })).toContainText("₹50,000.00");
   await shot(p.page, "62-salaries");
 
   // Run: create, compute, submit.
@@ -621,10 +670,14 @@ test("payslips: employee sees only their own; HR without salary access sees amou
 
 // --- 5. Expenses: claim filed by the employee, approved and paid by two other people ------------
 
-test("expense claim: employee files and submits; finance approves; accounts pays; advance and fuel", async ({ browser }) => {
-  test.setTimeout(300_000);
+/** A tiny but valid PDF: what a phone would upload as a receipt. */
+const RECEIPT_PDF = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+
+test("expense claim: employee files, fixes and resubmits; finance decides; accounts pays; advance settled; fuel", async ({ browser }) => {
+  test.setTimeout(480_000);
   const state = load();
-  const finance = await session(browser, state.users.finance);
+  const fin = state.users.finance;
+  const finance = await session(browser, fin);
   await finance.page.goto("/expenses?tab=categories");
   await finance.page.getByRole("button", { name: "Category" }).click();
   const cat = finance.page.getByRole("dialog");
@@ -634,59 +687,110 @@ test("expense claim: employee files and submits; finance approves; accounts pays
   await cat.getByLabel("Receipt needed above (₹)").fill("500");
   await cat.getByRole("button", { name: "Save" }).click();
   await expect(finance.page.getByRole("row", { name: /Local travel \(E2E\)/ })).toContainText("₹10,000.00");
-  await ok(finance.page, state.users.finance, "POST", "/api/v1/expenses/categories/", { company: state.ids.company, code: "MEAL60", name: "Meals (E2E)", per_claim_limit: "2000" });
+  await ok(finance.page, fin, "POST", "/api/v1/expenses/categories/", { company: state.ids.company, code: "MEAL60", name: "Meals (E2E)", per_claim_limit: "2000" });
+  // Policy limits are data: raise the meals limit on the screen (the form opens with the stored value).
+  await finance.page.reload();
+  await finance.page.getByRole("button", { name: "Edit Meals (E2E)" }).click();
+  const editCat = finance.page.getByRole("dialog");
+  await expect(editCat.getByLabel("Per-claim limit (₹)")).toHaveValue("2000");
+  await editCat.getByLabel("Per-claim limit (₹)").fill("2500");
+  await editCat.getByRole("button", { name: "Save" }).click();
+  await expect(finance.page.getByText("Category saved")).toBeVisible();
+  await expect(finance.page.getByRole("row", { name: /Meals \(E2E\)/ })).toContainText("₹2,500.00");
   await shot(finance.page, "64-categories");
 
   // Priya files a claim on her phone-sized screen.
-  const priya = await session(browser, state.users.priya);
-  await priya.page.setViewportSize({ width: 375, height: 812 });
-  await priya.page.goto("/me/expenses/new");
-  await expect(priya.page.getByRole("heading", { level: 1, name: "New expense claim" })).toBeVisible();
-  await priya.page.getByLabel("Purpose").fill("Supplier visit, Chakan (E2E)");
-  await pick(priya.page, priya.page.getByLabel("Category").first(), "Local travel (E2E)");
-  await priya.page.getByLabel("What for").first().fill("Cab to supplier and back");
-  await priya.page.getByLabel("Amount (₹)").first().fill("1200");
-  await expect(priya.page.getByText("Above ₹500.00 needs a receipt.")).toBeVisible();
-  await priya.page.getByRole("button", { name: "Add another expense" }).click();
-  await pick(priya.page, priya.page.getByLabel("Category").nth(1), "Meals (E2E)");
-  await priya.page.getByLabel("What for").nth(1).fill("Lunch with supplier team");
-  await priya.page.getByLabel("Amount (₹)").nth(1).fill("450.50");
-  await expect(priya.page.getByText("₹1,650.50")).toBeVisible();
-  await expectNoHorizontalScroll(priya.page);
-  await shot(priya.page, "64-new-claim-375");
-  await priya.page.getByRole("button", { name: "Submit claim" }).click();
+  const me = state.users.priya;
+  const priya = await session(browser, me);
+  const pp = priya.page;
+  await pp.setViewportSize({ width: 375, height: 812 });
+  await pp.goto("/me/expenses/new");
+  await expect(pp.getByRole("heading", { level: 1, name: "New expense claim" })).toBeVisible();
+  await pp.getByLabel("Purpose").fill("Supplier visit, Chakan (E2E)");
+  await pick(pp, pp.getByLabel("Category").first(), "Local travel (E2E)");
+  await pp.getByLabel("What for").first().fill("Cab to supplier and back");
+  await pp.getByLabel("Amount (₹)").first().fill("1200");
+  await expect(pp.getByText("Above ₹500.00 needs a receipt.")).toBeVisible();
+  await pp.getByRole("button", { name: "Add another expense" }).click();
+  await pick(pp, pp.getByLabel("Category").nth(1), "Meals (E2E)");
+  await pp.getByLabel("What for").nth(1).fill("Lunch with supplier team");
+  await pp.getByLabel("Amount (₹)").nth(1).fill("450.50");
+  await expect(pp.getByText("₹1,650.50")).toBeVisible();
+  await expectNoHorizontalScroll(pp);
+  await shot(pp, "64-new-claim-375");
+  await pp.getByRole("button", { name: "Submit claim" }).click();
   // Saved as a draft but refused on submit: the policy (receipt threshold) is data on the category.
-  await expect(priya.page.getByText(/not submitted/)).toBeVisible();
-  await expect(priya.page.getByRole("heading", { level: 1, name: "Expense claim" })).toBeVisible();
-  await priya.page.getByRole("button", { name: "Submit for approval" }).click();
-  await expect(priya.page.getByRole("cell", { name: /needs a receipt/ })).toBeVisible();
-  await shot(priya.page, "64-claim-policy-errors-375");
-  await priya.page.getByRole("button", { name: "Edit" }).click();
-  await priya.page.getByLabel("Receipt").first().fill("UBER-60-0001");
-  await priya.page.getByRole("button", { name: "Save claim" }).click();
-  await expect(priya.page.getByText("Claim saved")).toBeVisible();
-  await priya.page.getByRole("button", { name: "Submit for approval" }).click();
-  await expect(priya.page.getByText("Waiting for approval.")).toBeVisible();
-  const claimId = priya.page.url().split("/").pop()!;
-  await shot(priya.page, "64-claim-submitted-375");
+  await expect(pp.getByText(/not submitted/)).toBeVisible();
+  await expect(pp.getByRole("heading", { level: 1, name: "Expense claim" })).toBeVisible();
+  await pp.waitForURL(/\/me\/expenses\/[0-9a-f-]{36}$/);
+  const claimId = pp.url().split("/").pop()!;
+  await pp.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(pp.getByRole("cell", { name: /needs a receipt/ })).toBeVisible();
+  await shot(pp, "64-claim-policy-errors-375");
 
-  // Advance request from self-service.
-  await priya.page.goto("/me/expenses");
-  await priya.page.getByRole("button", { name: "Request an advance" }).click();
-  await priya.page.getByRole("dialog").getByLabel("Amount (₹)").fill("5000");
-  await priya.page.getByRole("dialog").getByLabel("Purpose").fill("Trade fair travel, Mumbai (E2E)");
-  await priya.page.getByRole("dialog").getByRole("button", { name: "Request advance" }).click();
-  await expect(priya.page.getByRole("dialog")).toContainText("Advance requested");
-  await priya.page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
-  await expect(priya.page.getByRole("link", { name: /Supplier visit, Chakan/ })).toContainText("Submitted");
-  await expectNoHorizontalScroll(priya.page);
-  await shot(priya.page, "64-my-expenses-375");
+  // She edits the draft while the claim changes elsewhere: her save is refused (409), the editor
+  // reloads the latest version and says why; she enters the receipt again and attaches the lunch bill.
+  await pp.getByRole("button", { name: "Edit" }).click();
+  await pp.getByLabel("Receipt").first().fill("UBER-60-0001");
+  const current = await ok(pp, me, "GET", `/api/v1/expenses/claims/${claimId}/`);
+  await ok(pp, me, "PATCH", `/api/v1/expenses/claims/${claimId}/`, { purpose: "Supplier visit, Chakan (E2E)", version: current.version });
+  await pp.getByRole("button", { name: "Save claim" }).click();
+  await expect(pp.getByText(/Someone else changed this record/).first()).toBeVisible();
+  await expect(pp.getByLabel("Receipt").first()).toHaveValue("");
+  await pp.getByLabel("Receipt").first().fill("UBER-60-0001");
+  const chooser = pp.waitForEvent("filechooser");
+  await pp.getByRole("button", { name: "Attach receipt file" }).nth(1).click();
+  await (await chooser).setFiles({ name: "lunch-bill-60.pdf", mimeType: "application/pdf", buffer: RECEIPT_PDF });
+  await expect(pp.getByText("Attached lunch-bill-60.pdf")).toBeVisible();
+  await expect(pp.getByLabel("Receipt").nth(1)).toHaveValue("lunch-bill-60.pdf");
+  await expectNoHorizontalScroll(pp);
+  await shot(pp, "64-claim-edit-375");
+  await pp.getByRole("button", { name: "Save claim" }).click();
+  await expect(pp.getByText("Claim saved")).toBeVisible();
+  await pp.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(pp.getByText("Waiting for approval.")).toBeVisible();
+  await shot(pp, "64-claim-submitted-375");
 
-  // Farah decides the claim (she isn't the claimant) and the advance.
+  // Advance request from self-service; it shows under her advances.
+  await pp.goto("/me/expenses");
+  await pp.getByRole("button", { name: "Request an advance" }).click();
+  await pp.getByRole("dialog").getByLabel("Amount (₹)").fill("5000");
+  await pp.getByRole("dialog").getByLabel("Purpose").fill("Trade fair travel, Mumbai (E2E)");
+  await pp.getByRole("dialog").getByRole("button", { name: "Request advance" }).click();
+  await expect(pp.getByRole("dialog")).toContainText("Advance requested");
+  await pp.getByRole("dialog").getByRole("button", { name: "Done" }).click();
+  await expect(pp.getByRole("link", { name: /Supplier visit, Chakan/ })).toContainText("Submitted");
+  const myAdvance = pp.getByRole("listitem").filter({ hasText: "Trade fair travel, Mumbai (E2E)" });
+  await expect(myAdvance).toContainText("Waiting for approval");
+  await expectNoHorizontalScroll(pp);
+  await shot(pp, "64-my-expenses-375");
+
+  // Farah (not the claimant) sees the receipts and sends the claim back with a reason.
   await finance.page.goto("/expenses");
   await finance.page.getByRole("link", { name: /Priya Kulkarni/ }).first().click();
   await expect(finance.page.getByRole("heading", { level: 1, name: /Supplier visit, Chakan/ })).toBeVisible();
   await expect(finance.page.getByRole("cell", { name: "UBER-60-0001" })).toBeVisible();
+  await expect(finance.page.getByText("Receipt: lunch-bill-60.pdf")).toBeVisible();
+  await finance.page.getByRole("button", { name: "Decide" }).click();
+  await finance.page.getByRole("dialog").getByLabel("Comment").fill("Add the trip date to the cab line.");
+  await finance.page.getByRole("dialog").getByRole("button", { name: "Reject" }).click();
+  await expect(finance.page.getByText(/Claim .* rejected/)).toBeVisible();
+  await expect(finance.page.getByText("Add the trip date to the cab line.")).toBeVisible();
+
+  // Priya reads the reason, fixes the line and resubmits.
+  await pp.goto(`/me/expenses/${claimId}`);
+  await expect(pp.getByText("Approver's comment: Add the trip date to the cab line.")).toBeVisible();
+  await shot(pp, "64-claim-rejected-375");
+  await pp.getByRole("button", { name: "Edit" }).click();
+  await pp.getByLabel("What for").first().fill("Cab to supplier and back, 30 Oct");
+  await pp.getByRole("button", { name: "Save claim" }).click();
+  await expect(pp.getByText("Claim saved")).toBeVisible();
+  await pp.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(pp.getByText("Waiting for approval.")).toBeVisible();
+
+  // Farah approves the resubmitted claim and the advance.
+  await finance.page.goto(`/expenses/claims/${claimId}`);
+  await expect(finance.page.getByRole("cell", { name: /Cab to supplier and back, 30 Oct/ })).toBeVisible();
   await finance.page.getByRole("button", { name: "Decide" }).click();
   await finance.page.getByRole("dialog").getByRole("button", { name: "Approve" }).click();
   await expect(finance.page.getByText(/approved and posted/)).toBeVisible();
@@ -696,6 +800,8 @@ test("expense claim: employee files and submits; finance approves; accounts pays
   await finance.page.getByRole("button", { name: "Decide" }).click();
   await finance.page.getByRole("dialog").getByRole("button", { name: "Approve" }).click();
   await expect(finance.page.getByText(/Advance .* approved/)).toBeVisible();
+  // Farah approved them, but she can't pay them: paying is a separate duty.
+  await expect(finance.page.getByRole("button", { name: "Record payment" })).toHaveCount(0);
 
   // Fuel log: odometer must keep rising per vehicle.
   await finance.page.goto("/expenses?tab=fuel");
@@ -713,14 +819,14 @@ test("expense claim: employee files and submits; finance approves; accounts pays
   let d = await fuel("10500");
   await d.getByRole("button", { name: "Record" }).click();
   await expect(finance.page.getByRole("row", { name: /MH12AB6060/ })).toContainText("10500 km");
+  await expect(finance.page.getByRole("row", { name: /MH12AB6060/ })).toContainText("₹2,090.00");
   d = await fuel("10400");
   await expect(d.getByText(/Must be above the last reading \(10500 km/)).toBeVisible();
   await expect(d.getByRole("button", { name: "Record" })).toBeDisabled();
   await shot(finance.page, "64-fuel-odometer");
   await finance.page.keyboard.press("Escape");
   await mobile(finance.page, "64-expenses-claims", "/expenses?status=any", "Expense claims");
-  finance.clean();
-  await finance.close();
+  await mobile(finance.page, "64-expenses-categories", "/expenses?tab=categories", "Expense claims");
 
   // Kabir pays both; the claimant can't be the payer (guarded by the server; the screen says so).
   const payer = await session(browser, state.users.payer);
@@ -738,15 +844,132 @@ test("expense claim: employee files and submits; finance approves; accounts pays
   await payer.page.getByRole("dialog").getByLabel("Bank reference").fill("NEFT-60-0002");
   await payer.page.getByRole("dialog").getByRole("button", { name: "Record payment" }).click();
   await passStepUp(payer.page, state.users.payer, payer.page.getByText(/Advance .* paid/));
+  await shot(payer.page, "64-advance-paid");
+  await mobile(payer.page, "64-advance-paid", payer.page.url().replace(/^https?:\/\/[^/]+/, ""), /Advance for Priya/);
   payer.clean();
   await payer.close();
 
-  // Priya sees the claim paid.
-  await priya.page.goto(`/me/expenses/${claimId}`);
-  await expect(priya.page.getByText("Paid to your bank account.")).toBeVisible();
-  await expect(priya.page.getByText("NEFT-60-0001")).toBeVisible();
-  await expectNoHorizontalScroll(priya.page);
-  await shot(priya.page, "64-my-claim-paid-375");
+  // Priya sees the claim paid, and the advance paid and open.
+  await pp.goto(`/me/expenses/${claimId}`);
+  await expect(pp.getByText("Paid to your bank account.")).toBeVisible();
+  await expect(pp.getByText("NEFT-60-0001")).toBeVisible();
+  await expectNoHorizontalScroll(pp);
+  await shot(pp, "64-my-claim-paid-375");
+  await pp.goto("/me/expenses");
+  await expect(myAdvance).toContainText("₹5,000.00 outstanding");
+
+  // Her next claim settles the advance: the approved amount repays it first, nothing is paid out.
+  await pp.goto("/me/expenses/new");
+  await pp.getByLabel("Purpose").fill("Trade fair meals, Mumbai (E2E)");
+  await pick(pp, pp.getByLabel("Settle against advance"), /₹5,000.00 outstanding/);
+  await pick(pp, pp.getByLabel("Category").first(), "Meals (E2E)");
+  await pp.getByLabel("What for").first().fill("Meals during the fair, three days");
+  await pp.getByLabel("Amount (₹)").first().fill("1500");
+  await expectNoHorizontalScroll(pp);
+  await shot(pp, "64-claim-with-advance-375");
+  await pp.getByRole("button", { name: "Submit claim" }).click();
+  await expect(pp.getByText("Waiting for approval.")).toBeVisible();
+  await pp.waitForURL(/\/me\/expenses\/[0-9a-f-]{36}$/);
+  const claim2 = pp.url().split("/").pop()!;
+
+  await finance.page.goto(`/expenses/claims/${claim2}`);
+  await finance.page.getByRole("button", { name: "Decide" }).click();
+  await finance.page.getByRole("dialog").getByRole("button", { name: "Approve" }).click();
+  await expect(finance.page.getByText(/approved and posted/)).toBeVisible();
+  const summary = finance.page.getByRole("region", { name: "Summary" }).or(finance.page.locator("dl")).first();
+  await expect(summary).toContainText("Advance settled");
+  await expect(summary).toContainText("₹1,500.00");
+  finance.clean();
+  await finance.close();
+
+  await pp.goto(`/me/expenses/${claim2}`);
+  await expect(pp.getByText("Advance settled")).toBeVisible();
+  await pp.goto("/me/expenses");
+  await expect(myAdvance).toContainText("₹3,500.00 outstanding");
+  await expectNoHorizontalScroll(pp);
+  await shot(pp, "64-my-expenses-after-375");
+  priya.clean();
+  await priya.close();
+});
+
+// --- 6. Payroll reversal: a posted month is undone and paid again with corrected pay ------------
+
+test("payroll reversal: a reason is required, the month reopens, the corrected run is approved and posted", async ({ browser }) => {
+  test.setTimeout(420_000);
+  const state = load();
+  const officer = state.users.payroll;
+  const p = await session(browser, officer);
+  const runId = state.ids.run;
+
+  await p.page.goto(`/hr/payroll-runs/${runId}`);
+  await expect(p.page.getByRole("heading", { level: 1, name: `Payroll October ${YEAR}` })).toBeVisible();
+  await p.page.getByRole("button", { name: "Reverse" }).click();
+  const dialog = p.page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Reverse payroll" })).toBeDisabled(); // a reason is required
+  await dialog.getByLabel("Reason").fill("Wrong basic for E60-001: offer letter says 32,000");
+  await shot(p.page, "65-reverse-dialog");
+  await dialog.getByRole("button", { name: "Reverse payroll" }).click();
+  await passStepUp(p.page, officer, p.page.getByText(/reversed\. October 2026 is open for a corrected run/));
+  await expect(p.page.getByText("Reversed", { exact: true }).first()).toBeVisible();
+  await expect(p.page.getByRole("button", { name: "Reverse" })).toHaveCount(0);
+  await expect(p.page.getByText(/This run was reversed/)).toBeVisible();
+  await shot(p.page, "65-run-reversed");
+  await mobile(p.page, "65-run-reversed", `/hr/payroll-runs/${runId}`, `Payroll October ${YEAR}`);
+
+  // The salary used by the reversed run can be corrected now.
+  await p.page.goto("/hr/payroll?tab=salaries");
+  await passStepUp(p.page, officer, p.page.getByRole("row", { name: /E60-001/ }));
+  await p.page.getByRole("button", { name: "Edit salary of E60-001" }).click();
+  await p.page.getByRole("dialog").getByLabel(/Basic pay/).fill("32000");
+  await p.page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await passStepUp(p.page, officer, p.page.getByText("Salary updated"));
+  await expect(p.page.getByRole("row", { name: /E60-001/ })).toContainText("₹32,000.00");
+
+  // A corrected run for the same month: Priya 32,000 + 12,800 HRA = 44,800 gross; PF 1,800; PT 200.
+  await p.page.goto(`/hr/payroll-runs/${runId}`);
+  await p.page.getByRole("link", { name: `Create a corrected run for October ${YEAR}` }).click();
+  await p.page.getByRole("button", { name: "New payroll run" }).click();
+  await pick(p.page, p.page.getByRole("dialog").getByLabel("Month"), "October");
+  await p.page.getByRole("dialog").getByLabel("Year").fill(String(YEAR));
+  await p.page.getByRole("dialog").getByRole("button", { name: "Create run" }).click();
+  await expect(p.page.getByRole("heading", { level: 1, name: `Payroll October ${YEAR}` })).toBeVisible();
+  await expect(p.page).not.toHaveURL(new RegExp(runId));
+  const corrected = p.page.url().split("/").pop()!;
+  await p.page.getByRole("button", { name: "Compute" }).click();
+  await expect(p.page.getByText("Computed 2 payslip(s)")).toBeVisible();
+  await expect(p.page.getByRole("row", { name: /Priya Kulkarni/ })).toContainText("₹42,800.00");
+  await p.page.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(p.page.getByText("Sent for approval")).toBeVisible();
+  await p.page.goto("/hr/payroll?status=reversed");
+  await expect(p.page.getByRole("row", { name: new RegExp(`October ${YEAR}`) })).toContainText("Reversed");
+  await p.page.goto("/hr/payroll");
+  await expect(p.page.getByRole("row", { name: new RegExp(`October ${YEAR}`) })).toHaveCount(2);
+  await shot(p.page, "65-runs-after-reversal");
+
+  const finance = await session(browser, state.users.finance);
+  await finance.page.goto(`/hr/payroll-runs/${corrected}`);
+  await finance.page.getByRole("button", { name: "Decide" }).click();
+  await finance.page.getByRole("dialog").getByLabel("Comment").fill("Corrected basic checked against the offer letter.");
+  await finance.page.getByRole("dialog").getByRole("button", { name: "Approve" }).click();
+  await passStepUp(finance.page, state.users.finance, finance.page.getByText("Payroll approved"));
+  finance.clean();
+  await finance.close();
+
+  await p.page.goto(`/hr/payroll-runs/${corrected}`);
+  await p.page.getByRole("button", { name: "Post to ledger" }).click();
+  await p.page.getByRole("dialog").getByRole("button", { name: "Post payroll" }).click();
+  await passStepUp(p.page, officer, p.page.getByText(/posted to the ledger/));
+  await expect(p.page.getByText("Posted", { exact: true }).first()).toBeVisible();
+  p.clean();
+  await p.close();
+
+  // Priya sees one October payslip: the corrected one.
+  const priya = await session(browser, state.users.priya);
+  await priya.page.goto("/me/payslips");
+  await expect(priya.page.getByRole("button", { name: new RegExp(`October ${YEAR}`) })).toHaveCount(1);
+  await expect(priya.page.getByText("₹42,800.00")).toBeVisible();
+  await expect(priya.page.getByText("₹40,000.00")).toHaveCount(0);
+  await shot(priya.page, "65-my-payslips-corrected");
   priya.clean();
   await priya.close();
 });

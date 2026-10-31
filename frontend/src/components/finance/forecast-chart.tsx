@@ -56,12 +56,12 @@ export function ForecastChart({ history, forecast, unitLabel = "Demand" }: { his
   const hp = hover !== null ? points[hover] : null;
 
   return (
-    <figure className="grid gap-2">
+    <figure className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground" aria-hidden>
         <span className="flex items-center gap-1.5"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="var(--chart-1)" strokeWidth="2" /></svg>Actual demand</span>
         <span className="flex items-center gap-1.5"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="var(--chart-3)" strokeWidth="2" strokeDasharray="4 3" /></svg>Forecast</span>
       </div>
-      <div ref={wrap} className="relative w-full touch-none select-none"
+      <div ref={wrap} className="relative w-full min-w-0 overflow-hidden touch-none select-none"
         onPointerMove={(e) => onMove(e.clientX)} onPointerLeave={() => setHover(null)}>
         <svg width={width} height={height} role="img" aria-label={`${unitLabel} by month: ${history.length} months of history and ${forecast.length} forecast months`} className="block">
           {ticks.map((t) => (

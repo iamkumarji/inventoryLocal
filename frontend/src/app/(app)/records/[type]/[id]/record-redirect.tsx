@@ -46,7 +46,8 @@ export function RecordRedirect() {
   const router = useRouter();
   const base = ROUTES[decodeURIComponent(type)];
   useEffect(() => {
-    if (base) router.replace(`${base}/${id}`);
+    // Keep the query (a mention links to `?comment=<id>`, which the record's discussion panel highlights).
+    if (base) router.replace(`${base}/${id}${window.location.search}`);
   }, [base, id, router]);
   if (base) return null;
   return <EmptyState title="This record can't be opened here" description="There is no screen for this kind of record yet." />;

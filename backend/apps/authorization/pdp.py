@@ -298,7 +298,12 @@ def require(ctx: ActorContext, action: str, resource: Resource | None = None) ->
     if not decision.allowed:
         if decision.reason == "mfa_required":
             raise MFARequired()
-        raise AuthorizationDenied(reason=decision.reason if not decision.policy else f"policy:{decision.policy}")
+        # SoD denials carry the rule code in `policy` but must surface as "sod" (an explained refusal);
+        # the rule code itself is in the decision log.
+        explained_sod = decision.reason == "sod"
+        raise AuthorizationDenied(
+            reason=decision.reason if explained_sod or not decision.policy else f"policy:{decision.policy}"
+        )
     return decision
 
 

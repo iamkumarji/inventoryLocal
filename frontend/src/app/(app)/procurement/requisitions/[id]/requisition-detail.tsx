@@ -1,18 +1,22 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Send } from "lucide-react";
+import { Ban, FileText, Send } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable, type Column } from "@/components/erp/data-table";
+import { Field } from "@/components/erp/field";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { ErrorState, PageSkeleton } from "@/components/erp/states";
 import { ActionError, DocStatus, Facts, Money, Notice } from "@/components/trade/common";
 import { trim } from "@/components/trade/decimal";
 import { Actions, DecisionPanel, useTradeAction } from "@/components/trade/layout";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { api, unwrap } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { tradeKey, useCompanyScopes, useItemIndex, useUoms } from "@/lib/api/trade";
@@ -22,7 +26,7 @@ import { useSession } from "@/lib/session";
 type Line = components["schemas"]["PurchasePRLine"];
 
 export const APPROVER_HINTS = {
-  permission_denied: "You can't decide this. Approving needs an approval limit that covers the amount, and nobody can approve a document they raised or submitted.",
+  permission_denied: "You can't decide this: you need approval rights for this document in this branch.",
 };
 
 export function RequisitionDetail() {
@@ -31,6 +35,8 @@ export function RequisitionDetail() {
   const scopes = useCompanyScopes();
   const uoms = useUoms();
   const items = useItemIndex();
+  const [cancelling, setCancelling] = useState(false);
+  const [reason, setReason] = useState("");
   const query = useQuery({
     queryKey: tradeKey("requisitions", id),
     queryFn: () => unwrap(api.GET("/api/v1/procurement/requisitions/{id}/", { params: { path: { id } } })),
@@ -41,6 +47,9 @@ export function RequisitionDetail() {
   const decide = useTradeAction(({ approve, comment }: { approve: boolean; comment: string }) =>
     unwrap(api.POST("/api/v1/procurement/requisitions/{id}/decide/", { params: { path: { id } }, body: { approve, comment, version: query.data!.version } })),
   (_d, v) => toast(v.approve ? "Requisition approved" : "Requisition rejected"));
+  const cancel = useTradeAction(() =>
+    unwrap(api.POST("/api/v1/procurement/requisitions/{id}/cancel/", { params: { path: { id } }, body: { reason } })),
+  () => { toast("Requisition cancelled"); setCancelling(false); setReason(""); });
 
   if (query.isLoading) return <PageSkeleton />;
   if (query.error) return <ErrorState error={query.error} onRetry={query.refetch} />;
@@ -65,6 +74,9 @@ export function RequisitionDetail() {
           )}
           {pr.status === "approved" && can("procurement.rfq.create") && (
             <Button variant="outline" asChild><Link href={`/procurement/rfqs?new=1&requisition=${pr.id}`}><FileText aria-hidden /> Request quotations</Link></Button>
+          )}
+          {["draft", "rejected", "approved"].includes(pr.status) && can("procurement.purchase_requisition.cancel") && (
+            <Button variant="outline" onClick={() => { cancel.reset(); setCancelling(true); }}><Ban aria-hidden /> Cancel requisition</Button>
           )}
         </Actions>} />
       <ActionError error={submit.error} className="mb-4" />
@@ -92,6 +104,19 @@ export function RequisitionDetail() {
           </Section>
         </div>
       </div>
+      <Dialog open={cancelling} onOpenChange={setCancelling}>
+        <DialogContent className="sm:max-w-md">
+          <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); cancel.mutate(undefined); }}>
+            <DialogHeader>
+              <DialogTitle>Cancel {pr.number}?</DialogTitle>
+              <DialogDescription>A cancelled requisition can&apos;t be ordered against. Requisitions with RFQs or orders can&apos;t be cancelled. The reason is recorded in the audit trail.</DialogDescription>
+            </DialogHeader>
+            <ActionError error={cancel.error} />
+            <Field id="pr-cancel-reason" label="Reason"><Textarea id="pr-cancel-reason" rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} required /></Field>
+            <DialogFooter><Button type="submit" variant="destructive" disabled={!reason.trim() || cancel.isPending}>Cancel requisition</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

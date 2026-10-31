@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, HandCoins, Plus, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
-import { errorText, isMoney, type Advance } from "@/lib/api/people";
+import { compareDecimal, errorText, isMoney, useMyAdvances, type Advance } from "@/lib/api/people";
 import { date } from "@/lib/format";
 
 function RequestAdvance() {
@@ -22,9 +22,13 @@ function RequestAdvance() {
   const [amount, setAmount] = useState("");
   const [purpose, setPurpose] = useState("");
   const [done, setDone] = useState<Advance | null>(null);
+  const queryClient = useQueryClient();
   const request = useMutation({
     mutationFn: () => unwrap(api.POST("/api/v1/expenses/advances/", { body: { amount: amount.trim(), purpose: purpose.trim() } })),
-    onSuccess: (advance) => { setDone(advance); setAmount(""); setPurpose(""); },
+    onSuccess: (advance) => {
+      setDone(advance); setAmount(""); setPurpose("");
+      queryClient.invalidateQueries({ queryKey: ["people", "my", "advances"] });
+    },
   });
   const errors = isApiError(request.error) ? request.error.fieldErrors() : {};
   return (
@@ -70,7 +74,7 @@ function MyClaims() {
     return <Card><EmptyState icon={Wallet} title="No expense claims yet" description="File a claim for travel, meals, fuel and other work expenses." action={<Button asChild><Link href="/me/expenses/new"><Plus aria-hidden /> New claim</Link></Button>} /></Card>;
   }
   return (
-    <ul className="grid gap-2">
+    <ul className="grid grid-cols-1 gap-2">
       {claims.data!.map((c) => (
         <li key={c.id}>
           <Link href={`/me/expenses/${c.id}`} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 hover:border-input focus-visible:outline-2">
@@ -90,11 +94,54 @@ function MyClaims() {
   );
 }
 
+const ADVANCE_STEPS: Record<string, string> = {
+  requested: "Waiting for approval",
+  approved: "Approved; payment on its way",
+  paid: "Paid to you; your next claims settle it",
+  settled: "Settled by your claims",
+  rejected: "Rejected",
+};
+
+/** The caller's advances (GET /expenses/my/advances/): status, what is still to settle, and any rejection reason. */
+function MyAdvances() {
+  const advances = useMyAdvances();
+  if (advances.isLoading) return <RowsSkeleton rows={2} />;
+  if (advances.error) return <ErrorState error={advances.error} onRetry={advances.refetch} />;
+  const list = advances.data ?? [];
+  if (list.length === 0) return null;
+  return (
+    <section aria-labelledby="my-advances" className="grid gap-2">
+      <h2 id="my-advances" className="type-section mt-4">Advances</h2>
+      <ul className="grid grid-cols-1 gap-2">
+        {list.map((a) => (
+          <li key={a.id} className="grid gap-1 rounded-lg border bg-card px-4 py-3">
+            <div className="flex items-start gap-3">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{a.purpose}</span>
+                <span className="block text-sm text-muted-foreground">{a.number} · {date(a.created_at)}</span>
+              </span>
+              <span className="grid justify-items-end gap-1">
+                <Amount value={a.amount} currency={a.currency} className="font-semibold" />
+                <DocStatus status={a.status} />
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {ADVANCE_STEPS[a.status] ?? ""}
+              {a.status === "paid" && compareDecimal(a.outstanding, "0") > 0 && <> · <Amount value={a.outstanding} currency={a.currency} /> outstanding</>}
+            </p>
+            {a.status === "rejected" && a.rejection_reason && <p className="text-sm"><span className="font-medium">Approver&apos;s comment:</span> {a.rejection_reason}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function MyExpensesView() {
   return (
     <SelfService title="My expenses" description="File claims with receipts, follow approval and payment, and request advances."
       actions={<><Button asChild><Link href="/me/expenses/new"><Plus aria-hidden /> New claim</Link></Button><RequestAdvance /></>}>
-      {() => <MyClaims />}
+      {() => <><MyClaims /><MyAdvances /></>}
     </SelfService>
   );
 }

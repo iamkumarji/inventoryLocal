@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookCheck, Calculator, Send } from "lucide-react";
+import { BookCheck, Calculator, Send, Undo2 } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import { useStepUp } from "@/components/shell/step-up";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { api, idempotencyKey, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
 import { SENSITIVE_QUERY, errorText, periodLabel, type PayrollRun } from "@/lib/api/people";
@@ -68,6 +70,41 @@ function PostRun({ run }: { run: PayrollRun }) {
   );
 }
 
+/** Undo a posted run with a reversing journal; the month reopens for a corrected run. Needs a reason and MFA. */
+function ReverseRun({ run }: { run: PayrollRun }) {
+  const { withStepUp } = useStepUp();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [key, setKey] = useState(idempotencyKey);
+  const reverse = useRunMutation(run.id, () => withStepUp(() => unwrap(api.POST("/api/v1/hr/payroll-runs/{id}/reverse/", {
+    params: { path: { id: run.id } },
+    headers: { "Idempotency-Key": key },
+    body: { reason: reason.trim(), version: run.version },
+  }))), (r) => `Payroll ${r.number} reversed. ${periodLabel(r.year, r.month)} is open for a corrected run.`);
+  const errors = isApiError(reverse.error) ? reverse.error.fieldErrors() : {};
+  return (
+    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) { setKey(idempotencyKey()); setReason(""); reverse.reset(); } }}>
+      <DialogTrigger asChild><Button size="sm" variant="outline"><Undo2 aria-hidden /> Reverse</Button></DialogTrigger>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+        <form className="grid gap-4" onSubmit={async (e) => { e.preventDefault(); try { await reverse.mutateAsync(undefined); setOpen(false); } catch { /* shown */ } }}>
+          <DialogHeader>
+            <DialogTitle>Reverse payroll {run.number}?</DialogTitle>
+            <DialogDescription>
+              Posts a reversing journal (the original stays on record) and reopens {periodLabel(run.year, run.month)} so a corrected run can be
+              computed. Reverse only before salaries are paid out.
+            </DialogDescription>
+          </DialogHeader>
+          <FormError message={reverse.error && !errors.reason ? errorText(reverse.error) : undefined} />
+          <Field id="reverse-reason" label="Reason" error={errors.reason} hint="Required. Recorded in the audit trail and on the reversing journal.">
+            <Textarea id="reverse-reason" value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={300} required />
+          </Field>
+          <DialogFooter><Button type="submit" variant="destructive" disabled={reverse.isPending || !reason.trim()}>Reverse payroll</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RunActions({ run }: { run: PayrollRun }) {
   const { can, me } = useSession();
   const { withStepUp } = useStepUp();
@@ -103,6 +140,7 @@ function RunActions({ run }: { run: PayrollRun }) {
     );
   }
   if (run.status === "approved" && can("hr.payroll_run.post")) buttons.push(<PostRun key="post" run={run} />);
+  if (run.status === "posted" && can("hr.payroll_run.reverse")) buttons.push(<ReverseRun key="reverse" run={run} />);
   return <>{buttons}</>;
 }
 
@@ -126,7 +164,7 @@ export function RunDetail() {
         ["Employer contributions", r.employer_total],
         ["Total cost", r.amount],
       ] as const).map(([label, value]) => (
-        <div key={label} className="bg-card px-4 py-3">
+        <div key={label} className="bg-card px-4 py-3 last:col-span-2 sm:last:col-span-1">
           <p className="text-xs text-muted-foreground">{label}</p>
           <p className="mt-0.5 text-base font-semibold"><Amount value={value} currency={r.currency} /></p>
         </div>
@@ -142,6 +180,12 @@ export function RunDetail() {
         actions={<RunActions run={r} />}
       />
       <div className="grid gap-6">
+        {r.status === "reversed" && (
+          <p role="status" className="rounded-md border bg-muted/40 px-4 py-3 text-sm">
+            This run was reversed with a reversing journal; its payslips no longer count.{" "}
+            {can("hr.payroll_run.create") ? <Link href="/hr/payroll" className="font-medium underline underline-offset-4">Create a corrected run for {periodLabel(r.year, r.month)}</Link> : `A corrected run for ${periodLabel(r.year, r.month)} can be created.`}
+          </p>
+        )}
         <Section title="Totals" description={r.amount === undefined ? "Amounts are restricted to people who can read salaries." : `${r.employee_count} employee(s)`}>
           {totals}
         </Section>

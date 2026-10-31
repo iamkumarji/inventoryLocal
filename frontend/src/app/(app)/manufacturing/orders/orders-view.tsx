@@ -37,6 +37,7 @@ function NewOrder() {
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["manufacturing", "orders"] });
       toast("Draft order created. Check material availability, then release it.");
+      setOpen(false); // Next keeps the list mounted: don't leave the dialog open behind the new record
       router.push(`/manufacturing/orders/${order.id}`);
     },
   });

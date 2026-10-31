@@ -137,6 +137,7 @@ def test_credit_limit_blocks_and_override_needs_another_person(ctx, o2c, books):
     second = order(ctx, o2c, books, qty="5")  # exposure 11,800 + 5,900 > 15,000
     second = services.submit_order(ctx(o2c["seller"]), second, on=TODAY())
     assert (second.status, second.credit_status) == ("submitted", "blocked")
+    assert second.credit_note == "Exposure 17700.00 exceeds the credit limit 15000.00."  # money with two decimals
     with pytest.raises(AuthorizationDenied):
         services.decide_credit(ctx(o2c["seller"]), second, approve=True, note="Good customer")
     second = services.decide_credit(ctx(o2c["manager"]), second, approve=True, note="Paid by cheque on delivery")

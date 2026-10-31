@@ -46,6 +46,7 @@ export function ClaimDetail() {
             ["Paid on", c.paid_on ? date(c.paid_on) : "—"],
             ["Bank reference", c.bank_reference || "—"],
             ["Filed", dateTime(c.created_at)],
+            ...(c.status === "rejected" && c.rejection_reason ? [["Rejection reason", c.rejection_reason] as [string, React.ReactNode]] : []),
           ]} />
         </Section>
       </div>

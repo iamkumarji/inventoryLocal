@@ -24,7 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
-import { isDecimal, qty, today, useOrgPlaces, type Asset, type AssetCategory } from "@/lib/api/production";
+import { dec, isDecimal, qty, today, useOrgPlaces, type Asset, type AssetCategory } from "@/lib/api/production";
 import { money } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { useUrlState } from "@/lib/use-url-state";
@@ -55,6 +55,7 @@ function NewAsset() {
     onSuccess: (asset) => {
       queryClient.invalidateQueries({ queryKey: ["assets", "register"] });
       toast(`${asset.code} added as a draft`);
+      setOpen(false);
       router.push(`/assets/${asset.id}`);
     },
   });
@@ -100,7 +101,7 @@ function CategoryDialog({ existing, open, onOpenChange }: { existing: AssetCateg
     setLoadedFor(marker);
     if (open) setForm(existing ? {
       code: existing.code, name: existing.name, depreciation_method: existing.depreciation_method,
-      useful_life_months: String(existing.useful_life_months ?? 0), wdv_rate: existing.wdv_rate ?? "0", salvage_pct: existing.salvage_pct ?? "0", is_active: existing.is_active ?? true,
+      useful_life_months: String(existing.useful_life_months ?? 0), wdv_rate: dec.norm(existing.wdv_rate), salvage_pct: dec.norm(existing.salvage_pct), is_active: existing.is_active ?? true,
     } : { code: "", name: "", depreciation_method: "slm", useful_life_months: "60", wdv_rate: "0", salvage_pct: "5", is_active: true });
   }
   const save = useMutation({

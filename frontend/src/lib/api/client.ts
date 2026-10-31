@@ -43,8 +43,13 @@ const middleware: Middleware = {
     } catch {
       problem = undefined;
     }
-    const isLoginCall = new URL(request.url).pathname.startsWith("/api/v1/auth/login");
-    if (response.status === 401 && !isLoginCall) authListeners.forEach((fn) => fn("unauthenticated"));
+    const path = new URL(request.url).pathname;
+    // A wrong password or code typed into a form (sign-in, step-up, turning MFA off) answers that form;
+    // it doesn't mean the session expired.
+    const isCodeCheck = ["/api/v1/auth/login", "/api/v1/auth/step-up", "/api/v1/auth/mfa/disable"].some((p) =>
+      path.startsWith(p),
+    );
+    if (response.status === 401 && !isCodeCheck) authListeners.forEach((fn) => fn("unauthenticated"));
     if (problem?.type === "mfa_enrollment_required" || problem?.type === "password_change_required") {
       authListeners.forEach((fn) => fn(problem!.type as AuthEvent));
     }

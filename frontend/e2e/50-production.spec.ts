@@ -96,6 +96,17 @@ async function pickPerson(page: Page, scope: Locator, label: string, name: strin
   await page.getByRole("option", { name: new RegExp(name) }).click();
 }
 
+/** Completes the two-step verification prompt if the action asked for one (sensitive actions). */
+async function passStepUp(page: Page) {
+  const stepUp = page.getByRole("dialog", { name: /Confirm it/ });
+  if (await stepUp.isVisible({ timeout: 3000 }).catch(() => false)) {
+    const fresh = await freshCode(page, state.meeraSecret, state.meeraStep);
+    state.meeraStep = fresh.step;
+    await stepUp.getByLabel("Verification code").fill(fresh.code);
+    await stepUp.getByRole("button", { name: "Verify and continue" }).click();
+  }
+}
+
 async function mobileCheck(page: Page, path: string, name: string) {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(path);
@@ -231,6 +242,12 @@ test("work centre and BOM: second-person approval, self-approval refused, cycle 
   await dialog.getByLabel("Overhead rate (₹/h)").fill("120");
   await dialog.getByRole("button", { name: "Create work centre" }).click();
   await expect(page.getByRole("cell", { name: /^PRESS-01/ })).toBeVisible();
+  await page.getByRole("button", { name: "Edit PRESS-01" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name", { exact: true }).fill("200 t power press (line 1)");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("PRESS-01 saved")).toBeVisible();
+  await expect(page.getByRole("cell", { name: /200 t power press \(line 1\)/ })).toBeVisible();
   await shot(page, "50-work-centres");
 
   await page.goto("/manufacturing/boms");
@@ -267,7 +284,9 @@ test("work centre and BOM: second-person approval, self-approval refused, cycle 
   const csrf = (await page.context().cookies()).find((c) => c.name === "erp_csrf")?.value ?? "";
   const self = await page.request.post(`/api/v1/manufacturing/boms/${bomId}/versions/${bom.versions[0].id}/approve/`, { headers: { "X-CSRF-Token": decodeURIComponent(csrf) } });
   expect(self.status()).toBe(403);
-  expect((await self.json()).type).toBe("permission_denied");
+  const refusal = await self.json();
+  expect(refusal.code).toBe("self_approval");
+  expect(refusal.detail).toMatch(/can't approve .*you created/i);
 
   // A version that would make the sub-assembly contain the bracket is a cycle; the API's message is shown.
   await page.goto(`/manufacturing/boms/${state.ids.sfgBom}`);
@@ -288,6 +307,7 @@ test("work centre and BOM: second-person approval, self-approval refused, cycle 
   await meera.page.getByRole("button", { name: "Approve version 1" }).click();
   await expect(meera.page.getByText("Version 1 approved", { exact: true })).toBeVisible();
   await expect(meera.page.getByRole("heading", { name: /Version 1/ })).toContainText("Approved");
+  await expect(meera.page.getByText(/Drafted by Rahul Deshmukh \(DEMO\) · approved by Meera Iyer \(DEMO\) \(you\)/)).toBeVisible();
   await meera.page.getByLabel("Quantity of FG-BRKT").fill("10");
   await meera.page.getByRole("button", { name: "Explode" }).click();
   const tree = meera.page.getByRole("list", { name: "Explosion tree" });
@@ -373,9 +393,46 @@ test("production order from release to close, with costing and a comment mention
   await page.getByRole("button", { name: "Post comment" }).click();
   await expect(page.getByText(/1 mentioned person notified/)).toBeVisible();
   await expect(page.getByRole("list", { name: "Comments" })).toContainText("@meera.planthead@demo.local");
+  await page.getByLabel("Add a comment").fill("Typo, ignore");
+  await page.getByRole("button", { name: "Post comment" }).click();
+  await expect(page.getByRole("list", { name: "Comments" })).toContainText("Typo, ignore");
+  await page.getByRole("list", { name: "Comments" }).locator("li", { hasText: "Typo, ignore" }).getByRole("button", { name: "Remove" }).click();
+  await expect(page.getByRole("list", { name: "Comments" })).toContainText("Comment removed.");
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByRole("list", { name: "Activity" })).toContainText("released");
   await shot(page, "56-order-closed-costing");
+  rahul.assertClean();
+
+  // Closed orders can't be cancelled (the action is for orders nothing has happened on).
+  const orderId = state.orderUrl.split("/").pop()!;
+  const csrf = (await page.context().cookies()).find((c) => c.name === "erp_csrf")?.value ?? "";
+  const late = await page.request.post(`/api/v1/manufacturing/orders/${orderId}/cancel/`, { data: { reason: "Too late" }, headers: { "X-CSRF-Token": decodeURIComponent(csrf) } });
+  expect(late.status()).toBe(409);
+
+  // A second order is released, then cancelled before any work: its reservations are freed.
+  await page.goto("/manufacturing/orders");
+  await page.getByRole("button", { name: "New order" }).click();
+  const second = page.getByRole("dialog");
+  await pickItem(page, second, "Item to make", "FG-BRKT");
+  await second.getByLabel(/^Quantity/).fill("5");
+  await choose(page, second, "Facility", /PUN-P1/);
+  await choose(page, second, "Issue materials from", /PUN-RM/);
+  await choose(page, second, "Work-in-progress warehouse", /PUN-WIP/);
+  await choose(page, second, "Receive output into", /PUN-FG/);
+  await second.getByRole("button", { name: "Create draft order" }).click();
+  await expect(page).toHaveURL(/\/manufacturing\/orders\/[0-9a-f-]+$/);
+  await page.getByRole("button", { name: "Release and reserve materials" }).click();
+  await expect(page.getByText(/Released as MO/)).toBeVisible();
+  await page.getByRole("button", { name: "Cancel order" }).click();
+  step = page.getByRole("dialog");
+  await expect(step.getByRole("button", { name: "Cancel order" })).toBeDisabled();
+  await step.getByLabel("Reason", { exact: true }).fill("Customer postponed the call-off");
+  await shot(page, "56a-order-cancel");
+  await step.getByRole("button", { name: "Cancel order" }).click();
+  await expect(page.getByText(/^MO\/.+ cancelled$/)).toBeVisible();
+  await expect(page.locator("header").getByText("Cancelled", { exact: true })).toBeVisible();
+  await expect(page.getByText("This order is cancelled. No further shop-floor actions.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel order" })).toHaveCount(0);
   rahul.assertClean();
 
   await mobileCheck(page, state.orderUrl, "57-order-mobile");
@@ -387,7 +444,15 @@ test("production order from release to close, with costing and a comment mention
   const meera = await asUser(browser, MEERA, { secret: state.meeraSecret, used: state.meeraStep });
   state.meeraStep = currentStep();
   await meera.page.goto("/notifications?filter=all");
-  await expect(meera.page.getByText(/mentioned you in a comment/).first()).toBeVisible();
+  const mention = meera.page.getByRole("link", { name: /mentioned you/ }).first();
+  await expect(mention).toBeVisible();
+  await expect(mention).toHaveAttribute("href", /^\/records\/manufacturing\.production_order\//);
+  await mention.click();
+  // /records/{type}/{id} forwards to the order screen, with the mentioning comment highlighted.
+  await expect(meera.page).toHaveURL(new RegExp(`/manufacturing/orders/${orderId}\\?comment=`));
+  const highlighted = meera.page.getByRole("list", { name: "Comments" }).locator("li[aria-current='true']");
+  await expect(highlighted).toContainText("please review the variance.");
+  await shot(meera.page, "56b-mention-followed");
   meera.assertClean();
   await meera.close();
 });
@@ -407,6 +472,12 @@ test("asset capitalized by a second person, then a depreciation run posted", asy
   await dialog.getByLabel("Salvage (% of cost)").fill("5");
   await dialog.getByRole("button", { name: "Create category" }).click();
   await expect(page.getByRole("cell", { name: /^PM ?Plant and machinery/ })).toBeVisible();
+  await page.getByRole("button", { name: "Edit PM" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name", { exact: true }).fill("Plant and machinery (Pune)");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("PM saved")).toBeVisible();
+  await expect(page.getByRole("cell", { name: /^PM ?Plant and machinery \(Pune\)/ })).toBeVisible();
 
   await page.getByRole("tab", { name: "Register" }).click();
   await page.getByRole("button", { name: "New asset" }).click();
@@ -443,24 +514,117 @@ test("asset capitalized by a second person, then a depreciation run posted", asy
   await expect(page.getByRole("link", { name: "AST-PRESS-01" })).toBeVisible();
   await shot(page, "61-depreciation-preview");
   await page.getByRole("button", { name: "Post run" }).click();
-  const stepUp = page.getByRole("dialog", { name: /Confirm it/ });
-  if (await stepUp.isVisible({ timeout: 3000 }).catch(() => false)) {
-    const fresh = await freshCode(page, state.meeraSecret, state.meeraStep);
-    state.meeraStep = fresh.step;
-    await stepUp.getByLabel("Verification code").fill(fresh.code);
-    await stepUp.getByRole("button", { name: "Verify and continue" }).click();
-  }
+  await passStepUp(page);
   await expect(page.getByText(/posted: ₹/)).toBeVisible();
   await expect(page.getByText("Posted", { exact: true }).first()).toBeVisible();
   await shot(page, "62-depreciation-posted");
 
+  const runUrl = page.url();
+
   await page.goto(state.assetUrl);
   await expect(page.getByText("Accumulated dep.")).toBeVisible();
   await shot(page, "63-asset-capitalized");
+
+  // The run is reversed (book values restored), then the month is run and posted again.
+  await page.goto(runUrl);
+  await page.getByRole("button", { name: "Reverse" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Reason", { exact: true }).fill("Run before the month's additions were capitalized");
+  await dialog.getByRole("button", { name: "Reverse run" }).click();
+  await passStepUp(page);
+  await expect(page.getByText("Run reversed; the month can be run again")).toBeVisible();
+  await expect(page.getByText("Reversed", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Run before the month's additions were capitalized")).toBeVisible();
+  await shot(page, "63a-depreciation-reversed");
+  await page.goto("/assets/depreciation");
+  await page.getByRole("button", { name: "New run" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Create draft run" }).click();
+  await expect(page).toHaveURL(/\/assets\/depreciation\/[0-9a-f-]+$/);
+  await expect(page.getByRole("link", { name: "AST-PRESS-01" })).toBeVisible();
+  await page.getByRole("button", { name: "Post run" }).click();
+  await passStepUp(page);
+  await expect(page.getByText(/posted: ₹/)).toBeVisible();
   meera.assertClean();
   await mobileCheck(page, state.assetUrl, "64-asset-mobile");
   await mobileCheck(page, "/assets/depreciation", "65-depreciation-mobile");
+  await mobileCheck(page, runUrl, "65a-run-mobile");
   await meera.close();
+
+  // A second asset goes through submit -> approve (decided by another person), then is disposed of.
+  const rahul2 = await asUser(browser, RAHUL);
+  page = rahul2.page;
+  await page.goto("/assets");
+  await page.getByRole("button", { name: "New asset" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Asset code").fill("AST-COMP-01");
+  await dialog.getByLabel("Name", { exact: true }).fill("Screw air compressor");
+  await choose(page, dialog, "Category", /^PM/);
+  await choose(page, dialog, "Facility", /PUN-P1/);
+  await dialog.getByLabel("Cost (₹)").fill("350000");
+  await dialog.getByLabel("Acquired on").fill(today());
+  await dialog.getByLabel("Put to use on").fill(today());
+  await dialog.getByRole("button", { name: "Add asset" }).click();
+  await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+$/);
+  const compressorUrl = page.url();
+  await page.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(page.getByText("Submitted for capitalization approval")).toBeVisible();
+  await expect(page.getByText("Waiting for an approver other than you.")).toBeVisible();
+  rahul2.assertClean();
+  await rahul2.close();
+
+  const meera2 = await asUser(browser, MEERA, { secret: state.meeraSecret, used: state.meeraStep });
+  state.meeraStep = currentStep();
+  page = meera2.page;
+  await page.goto(compressorUrl);
+  await page.getByLabel("Comment", { exact: true }).fill("Give the location before capitalizing");
+  await page.getByRole("button", { name: "Reject" }).click();
+  await passStepUp(page);
+  await expect(page.getByText("Capitalization rejected")).toBeVisible();
+  await expect(page.locator("header").getByText("Rejected", { exact: true })).toBeVisible();
+  meera2.assertClean();
+  await meera2.close();
+
+  const rahul3 = await asUser(browser, RAHUL);
+  page = rahul3.page;
+  await page.goto(compressorUrl);
+  await page.getByRole("button", { name: "Edit" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Location").fill("Compressor room, bay 2");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Asset saved")).toBeVisible();
+  await expect(page.locator("dd", { hasText: "Compressor room, bay 2" })).toBeVisible();
+  await page.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(page.getByText("Submitted for capitalization approval")).toBeVisible();
+  rahul3.assertClean();
+  await rahul3.close();
+
+  const meera3 = await asUser(browser, MEERA, { secret: state.meeraSecret, used: state.meeraStep });
+  state.meeraStep = currentStep();
+  page = meera3.page;
+  // Links from approval requests use /assets/assets/{id}; they forward to the asset screen.
+  await page.goto(compressorUrl.replace("/assets/", "/assets/assets/"));
+  await expect(page).toHaveURL(compressorUrl);
+  await page.getByLabel("Comment", { exact: true }).fill("Within budget");
+  await page.getByRole("button", { name: "Approve and capitalize" }).click();
+  await passStepUp(page);
+  await expect(page.getByText("AST-COMP-01 approved and capitalized")).toBeVisible();
+  await expect(page.locator("header").getByText("Capitalized", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Dispose" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Proceeds (₹)").fill("300000");
+  await expect(dialog.getByText("Loss ₹50,000.00")).toBeVisible();
+  await dialog.getByLabel("Reason", { exact: true }).fill("Replaced under the energy-saving programme");
+  await shot(page, "63b-asset-dispose");
+  await dialog.getByRole("button", { name: "Dispose asset" }).click();
+  await passStepUp(page);
+  await expect(page.getByText("Disposed with a loss of ₹50,000.00")).toBeVisible();
+  await expect(page.locator("header").getByText("Disposed", { exact: true })).toBeVisible();
+  await expect(page.locator("dd", { hasText: "Loss ₹50,000.00" })).toBeVisible();
+  await shot(page, "63c-asset-disposed");
+  meera3.assertClean();
+  await mobileCheck(page, "/assets", "65b-assets-mobile");
+  await meera3.close();
 });
 
 test("maintenance: plan generates preventive work; a breakdown work order runs its full lifecycle", async ({ browser }) => {
@@ -480,6 +644,11 @@ test("maintenance: plan generates preventive work; a breakdown work order runs i
   await expect(page.getByRole("cell", { name: /^Monthly press lubrication/ })).toBeVisible();
   await page.getByRole("button", { name: "Generate work orders" }).click();
   await expect(page.getByText("1 preventive work order generated")).toBeVisible();
+  await page.getByRole("button", { name: "Edit Monthly press lubrication" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Every (days)").fill("28");
+  await dialog.getByRole("button", { name: "Save plan" }).click();
+  await expect(page.getByText('Plan "Monthly press lubrication" saved')).toBeVisible();
   await shot(page, "66-maintenance-plans");
 
   await page.getByRole("tab", { name: "Meter readings" }).click();
@@ -506,7 +675,7 @@ test("maintenance: plan generates preventive work; a breakdown work order runs i
   await pickItem(page, dialog, "Spare 1", "SP-BELT");
   await choose(page, dialog, "From warehouse", /PUN-RM/);
   await dialog.getByRole("button", { name: "Issue spares" }).click();
-  await expect(page.getByText("Spares issued")).toBeVisible();
+  await expect(page.locator("[data-sonner-toast]", { hasText: "Spares issued" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "SP-BELT" })).toBeVisible();
 
   await page.getByRole("button", { name: "Complete", exact: true }).click();
@@ -523,7 +692,22 @@ test("maintenance: plan generates preventive work; a breakdown work order runs i
   await shot(page, "67-work-order-closed");
   const woUrl = page.url();
 
+  // The generated preventive work order is cancelled (nothing was issued against it).
+  await page.goto("/assets/maintenance?tab=work-orders");
+  await page.getByRole("row", { name: /Preventive/ }).first().click();
+  await expect(page).toHaveURL(/\/assets\/work-orders\/[0-9a-f-]+$/);
+  await expect(page.getByRole("heading", { name: "Checklist" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel work order" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Reason", { exact: true }).fill("Done together with the breakdown repair");
+  await dialog.getByRole("button", { name: "Cancel work order" }).click();
+  await expect(page.getByText("Work order cancelled")).toBeVisible();
+  await expect(page.getByText("This work order is cancelled.")).toBeVisible();
+
   await page.goto(state.assetUrl);
+  await page.getByLabel("Reading", { exact: true }).fill("1310");
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await expect(page.getByText("Current reading 1,310")).toBeVisible();
   const reliability = page.locator("section", { has: page.getByRole("heading", { name: "Reliability" }) });
   await expect(reliability).toContainText("1.5 h"); // MTTR from the 90-minute breakdown
   rahul.assertClean();
@@ -549,7 +733,17 @@ test("a task is assigned, then the assignee moves it through My tasks", async ({
   await expect(page.getByText("Task assigned to Priya Kulkarni (DEMO)")).toBeVisible();
   await expect(page).toHaveURL(/\/collaboration\/tasks\/[0-9a-f-]+$/);
   const taskUrl = page.url();
+  await page.getByRole("button", { name: "Edit" }).click();
+  const edit = page.getByRole("dialog");
+  await choose(page, edit, "Priority", /Urgent/);
+  await edit.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Task saved")).toBeVisible();
+  await expect(page.getByText("Urgent", { exact: true }).first()).toBeVisible();
   await shot(page, "70-task-detail");
+  await page.goto("/collaboration/tasks");
+  await expect(page.getByRole("cell", { name: /Count bracket stock after the trial run/ })).toBeVisible();
+  await page.getByLabel("Search tasks").fill("bracket stock");
+  await expect(page.getByRole("cell", { name: /Count bracket stock after the trial run/ })).toBeVisible();
   rahul.assertClean();
 
   const priya = await asUser(browser, PRIYA);
@@ -578,6 +772,31 @@ test("a task is assigned, then the assignee moves it through My tasks", async ({
   await rule.getByLabel("Name", { exact: true }).fill("Remind after a day overdue");
   await rule.getByRole("button", { name: "Create rule" }).click();
   await expect(page.getByRole("cell", { name: /^Remind after a day overdue/ })).toBeVisible();
+  await page.getByRole("button", { name: "Edit OVERDUE-24" }).click();
+  await page.getByRole("dialog").getByLabel("Overdue by (hours)").fill("48");
+  await page.getByRole("dialog").getByRole("button", { name: "Save rule" }).click();
+  await expect(page.getByText("Rule OVERDUE-24 saved")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "48 h" })).toBeVisible();
+
+  // A second task is reassigned from the team view, then cancelled by its new assignee's manager.
+  await page.goto("/collaboration/tasks");
+  await page.getByRole("button", { name: "New task" }).click();
+  const another = page.getByRole("dialog");
+  await another.getByLabel("Title", { exact: true }).fill("Label the WIP rack");
+  await pickPerson(page, another, "Assignee", "Priya");
+  await another.getByRole("button", { name: "Create task" }).click();
+  await expect(page).toHaveURL(/\/collaboration\/tasks\/[0-9a-f-]+$/);
+  await page.getByRole("button", { name: "Reassign" }).click();
+  const reassign = page.getByRole("dialog");
+  await pickPerson(page, reassign, "Assignee", "Meera");
+  await reassign.getByRole("button", { name: /^Assign to Meera/ }).click();
+  await expect(page.getByText("Assigned to Meera Iyer (DEMO)")).toBeVisible();
+  await page.getByRole("button", { name: "Cancel task: Label the WIP rack" }).click();
+  await expect(page.locator("header").getByText("Cancelled", { exact: true })).toBeVisible();
+
+  // Record links for kinds of record without a screen say so instead of failing.
+  await page.goto("/records/assets.maintenance_plan/00000000-0000-0000-0000-000000000000");
+  await expect(page.getByText("This record can't be opened here")).toBeVisible();
   await mobileCheck(page, "/collaboration/tasks", "73-tasks-mobile");
   rahul.assertClean();
   await rahul.close();
@@ -623,9 +842,67 @@ test("a document is uploaded, gets a new version and is downloaded", async ({ br
   await page.getByRole("switch", { name: /Legal hold/ }).click();
   await expect(page.getByText("Legal hold placed")).toBeVisible();
   await expect(page.getByText("Can't be deleted while a legal hold applies.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete document" })).toBeDisabled();
   await shot(page, "74-document-detail");
+  const docUrl = page.url();
+
+  // Retention: kept until a future date, which also blocks deletion once the hold is released.
+  const keep = new Date();
+  keep.setFullYear(keep.getFullYear() + 7);
+  const keepIso = `${keep.getFullYear()}-${String(keep.getMonth() + 1).padStart(2, "0")}-${String(keep.getDate()).padStart(2, "0")}`;
+  const governance = page.locator("section", { has: page.getByRole("heading", { name: "Retention and legal hold" }) });
+  await governance.getByLabel("Keep until").fill(keepIso);
+  await page.getByRole("button", { name: "Save retention" }).click();
+  await expect(page.getByText(/^Kept until /)).toBeVisible();
+  await page.getByLabel("Reason for releasing").fill("Investigation INC-104 closed");
+  await page.getByRole("switch", { name: /Legal hold/ }).click();
+  await expect(page.getByText("Legal hold released")).toBeVisible();
+  await expect(page.locator("section", { has: page.getByRole("heading", { name: "Delete", exact: true }) })).toContainText(/Can't be deleted before \d/);
+  await expect(page.getByRole("button", { name: "Delete document" })).toBeDisabled();
+
+  // A document without retention or hold can be deleted.
+  await page.goto("/documents");
+  await page.getByRole("button", { name: "Upload" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("File", { exact: true }).setInputFiles({ name: "old-drawing.csv", mimeType: "text/csv", buffer: Buffer.from("part,rev\nBRKT,A\n") });
+  await dialog.getByLabel("Title", { exact: true }).fill("Superseded bracket drawing");
+  await dialog.getByRole("button", { name: "Upload", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+$/);
+  await page.getByRole("button", { name: "Delete document" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByText("Document deleted")).toBeVisible();
+  await expect(page).toHaveURL(/\/documents$/);
+  await expect(page.getByRole("cell", { name: /Press safety SOP/ })).toBeVisible();
+  await expect(page.getByRole("cell", { name: /Superseded bracket drawing/ })).toHaveCount(0);
+
+  // Files attached from a record's side panel.
+  await page.goto(state.orderUrl);
+  await page.getByRole("tab", { name: "Files" }).click();
+  await page.getByLabel("Attach a file").setInputFiles({ name: "inspection-report.txt", mimeType: "text/plain", buffer: Buffer.from("10 of 10 brackets passed\n") });
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await expect(page.getByText("File attached")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Attachments" })).toContainText("inspection-report");
+  const [attached] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download inspection-report" }).click()]);
+  expect(readFileSync((await attached.path())!, "utf8")).toContain("10 of 10");
+  await shot(page, "74a-order-attachment");
+  // After a fresh load the access list and version history still name people (served by the API).
+  await page.goto(docUrl);
+  await expect(page.getByRole("list", { name: "Access entries" })).toContainText("Meera Iyer (DEMO)");
+  await page.getByRole("button", { name: "Edit details" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Description", { exact: true }).fill("Two-hand control and guard interlock checks.");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Details saved")).toBeVisible();
+  await expect(page.locator("dd", { hasText: "Two-hand control and guard interlock checks." })).toBeVisible();
+  await page.getByRole("list", { name: "Access entries" }).locator("li", { hasText: "Meera Iyer" }).getByRole("button", { name: "Revoke access" }).click();
+  await expect(page.getByText("Access revoked")).toBeVisible();
+  await page.goto("/documents");
+  await page.getByLabel("Filter by category").fill("sop");
+  await page.getByLabel("Filter by category").press("Enter");
+  await expect(page).toHaveURL(/category=sop/);
+  await expect(page.getByRole("cell", { name: /Press safety SOP/ })).toBeVisible();
   rahul.assertClean();
-  await mobileCheck(page, page.url(), "75-document-mobile");
+  await mobileCheck(page, docUrl, "75-document-mobile");
   await mobileCheck(page, "/documents", "76-documents-mobile");
   await rahul.close();
 });

@@ -481,7 +481,8 @@ def post_count(ctx: ActorContext, count: StockCount, expected_version=None) -> S
     if any(line.counted_quantity is None for line in lines):
         raise BusinessRuleViolation("Every line needs a count before posting.", code="count_incomplete")
     if any(line.counted_by_id == ctx.user_id for line in lines):
-        raise AuthorizationDenied(reason="counter_cannot_approve")
+        # Explained to the caller (403 with code "maker_checker"): they can see the count and know they counted it.
+        raise AuthorizationDenied(reason="maker_checker")
     moves = [
         Move(
             item=line.item,

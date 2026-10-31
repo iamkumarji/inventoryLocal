@@ -34,6 +34,7 @@ function NewRun() {
     onSuccess: (run) => {
       queryClient.invalidateQueries({ queryKey: ["assets", "runs"] });
       toast(`Draft run for ${monthLabel(run.period)} created. Preview it before posting.`);
+      setOpen(false);
       router.push(`/assets/depreciation/${run.id}`);
     },
   });

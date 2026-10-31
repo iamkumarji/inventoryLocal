@@ -106,8 +106,8 @@ export function TaskDetail() {
           {t.status === "open" && can("collaboration.task.assign") && <AssignTask task={t} onSaved={onSaved} onFail={onFail} />}
         </>}
       />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {can("collaboration.task.update") && (
             <Section title="Status">
               <div className="px-5 py-4"><TransitionButtons task={t} onChanged={onSaved} large /></div>

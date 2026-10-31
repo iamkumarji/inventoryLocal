@@ -31,21 +31,21 @@ function Lines({ lines }: { lines: Line[] }) {
     <div className="overflow-x-auto">
       <Table>
         <TableHeader><TableRow className="hover:bg-transparent">
-          <TableHead>Asset</TableHead><TableHead className="text-right">Opening book value</TableHead><TableHead className="text-right">Days</TableHead>
+          <TableHead>Asset</TableHead><TableHead className="hidden text-right sm:table-cell">Opening book value</TableHead><TableHead className="hidden text-right sm:table-cell">Days</TableHead>
           <TableHead className="text-right">Depreciation</TableHead><TableHead className="text-right">Book value after</TableHead>
         </TableRow></TableHeader>
         <TableBody>
           {lines.map((l) => (
             <TableRow key={l.asset}>
               <TableCell><Link href={`/assets/${l.asset}`} className="num font-medium underline-offset-4 hover:underline">{l.asset_code}</Link>{l.method && <span className="ml-2 text-xs text-muted-foreground uppercase">{l.method}</span>}</TableCell>
-              <TableCell className="num text-right">{money(l.opening_book_value)}</TableCell>
-              <TableCell className="num text-right">{l.days}</TableCell>
+              <TableCell className="num hidden text-right sm:table-cell">{money(l.opening_book_value)}</TableCell>
+              <TableCell className="num hidden text-right sm:table-cell">{l.days}</TableCell>
               <TableCell className="num text-right font-medium">{money(l.amount)}</TableCell>
               <TableCell className="num text-right">{money(l.book_value_after)}</TableCell>
             </TableRow>
           ))}
           <TableRow className="hover:bg-transparent">
-            <TableCell className="font-semibold">Total</TableCell><TableCell /><TableCell />
+            <TableCell className="font-semibold">Total</TableCell><TableCell className="hidden sm:table-cell" /><TableCell className="hidden sm:table-cell" />
             <TableCell className="num text-right font-semibold">{money(total)}</TableCell><TableCell />
           </TableRow>
         </TableBody>
@@ -108,7 +108,7 @@ export function RunDetail() {
         meta={<>
           <StateBadge kind="run" value={run.status} />
           {run.status !== "draft" && <span className="num text-base font-semibold">{money(run.total_amount)}</span>}
-          {run.status !== "draft" && <span className="text-muted-foreground">{run.asset_count} assets</span>}
+          {run.status !== "draft" && <span className="text-muted-foreground">{run.asset_count} {run.asset_count === 1 ? "asset" : "assets"}</span>}
         </>}
         actions={<>
           {run.status === "draft" && can("assets.depreciation_run.post") && (
@@ -125,7 +125,7 @@ export function RunDetail() {
         </>}
       />
       {post.error && <div className="mb-4"><FormError message={problemMessage(post.error)} /></div>}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
         <Section title={run.status === "draft" ? "Preview" : "Entries"} description={run.status === "draft" ? "What posting would charge now. Posting needs a fresh two-step verification." : "Per-asset depreciation as posted."}>
           {run.status === "draft" && preview.isLoading ? <RowsSkeleton rows={3} /> : preview.error ? <ErrorState error={preview.error} /> : lines.length === 0
             ? <EmptyState title="Nothing to depreciate" description="No capitalized asset is due for depreciation in this month." />

@@ -14,6 +14,7 @@ import { Cell, LedgerTable, Row } from "@/components/finance/ledger-table";
 import { ItemPicker, type ItemOption } from "@/components/finance/pickers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, unwrap } from "@/lib/api/client";
+import { isApiError } from "@/lib/api/errors";
 import { type Forecast, formatDecimal } from "@/lib/api/finance";
 import { useUrlState } from "@/lib/use-url-state";
 
@@ -57,7 +58,7 @@ export function ForecastView() {
       <PageHeader title="Demand forecast" description="Monthly consumption from the stock ledger (sales and production issues, net of returns), projected forward. Both methods forecast a level, not a trend or seasonality." />
       <Section className="mb-6">
         <div className="flex flex-wrap items-end gap-4 px-5 py-4">
-          <Field id="forecast-item" label="Item" className="w-full sm:w-auto"><ItemPicker id="forecast-item" value={shown} onChange={(i) => { setItem(i); url.set({ item: i.id }); }} /></Field>
+          <Field id="forecast-item" label="Item" className="w-full min-w-0 sm:w-auto"><ItemPicker id="forecast-item" value={shown} onChange={(i) => { setItem(i); url.set({ item: i.id }); }} /></Field>
           <Field id="forecast-method" label="Method">
             <Select value={method} onValueChange={(v) => url.set({ method: v })}>
               <SelectTrigger id="forecast-method" className="w-52"><SelectValue /></SelectTrigger>
@@ -72,7 +73,10 @@ export function ForecastView() {
         </div>
       </Section>
       {!itemId ? <Section><EmptyState icon={LineChart} title="Choose an item" description="Pick a stocked item to see its monthly demand and forecast." /></Section> :
-        q.error ? <Section><ErrorState error={q.error} onRetry={q.refetch} /></Section> : !q.data ? <Section><RowsSkeleton /></Section> : (
+        q.error ? (isApiError(q.error) && q.error.status === 404
+          ? <Section><EmptyState icon={LineChart} title="No demand history you can see for this item"
+            description="Forecasts read the stock ledger of the warehouses your access covers. Ask for stock ledger read access, or choose another item." /></Section>
+          : <Section><ErrorState error={q.error} onRetry={q.refetch} /></Section>) : !q.data ? <Section><RowsSkeleton /></Section> : (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
             <Figures items={[
               { label: "Forecast per month", value: <span className="num">{formatDecimal(q.data.forecast[0]?.demand, { dp: 2 })}</span>, hint: `${q.data.forecast.length} months ahead` },

@@ -27,7 +27,7 @@ function MyPayslips() {
   if (slips.error) return <ErrorState error={slips.error} onRetry={slips.refetch} />;
   if (slips.data!.length === 0) return <Card><EmptyState icon={Receipt} title="No payslips yet" description="Your payslip appears here once the month's payroll is posted." /></Card>;
   return (
-    <ul className="grid gap-2">
+    <ul className="grid grid-cols-1 gap-2">
       {slips.data!.map((s) => {
         const expanded = open === s.id;
         return (

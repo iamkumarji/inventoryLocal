@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
-import { errorText, humanize, trimDecimal, useSalaryComponents, withVersion, type SalaryComponent } from "@/lib/api/people";
+import { errorText, humanize, moneyInput, trimDecimal, useSalaryComponents, withVersion, type SalaryComponent } from "@/lib/api/people";
 import { useSession } from "@/lib/session";
 
 type Kind = SalaryComponent["kind"];
@@ -38,7 +38,7 @@ function toForm(c?: SalaryComponent): Form {
   return {
     code: c?.code ?? "", name: c?.name ?? "", kind: c?.kind ?? "earning", calculation: c?.calculation ?? "fixed",
     is_basic: c?.is_basic ?? false, is_statutory: c?.is_statutory ?? false, prorate: c?.prorate ?? true,
-    rate_pct: c?.rate_pct ?? "", wage_ceiling: c?.wage_ceiling ?? "", gross_max: c?.gross_max ?? "", gross_min: c?.gross_min ?? "",
+    rate_pct: moneyInput(c?.rate_pct), wage_ceiling: moneyInput(c?.wage_ceiling), gross_max: moneyInput(c?.gross_max), gross_min: moneyInput(c?.gross_min),
     expense_key: c?.expense_key ?? "", liability_key: c?.liability_key ?? "", sequence: String(c?.sequence ?? 100), is_active: c?.is_active ?? true,
   };
 }

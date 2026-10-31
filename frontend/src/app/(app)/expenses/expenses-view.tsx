@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
-import { compareDecimal, errorText, today, trimDecimal, useCategories, withVersion, type Advance, type Category, type Claim, type FuelLog } from "@/lib/api/people";
+import { compareDecimal, errorText, moneyInput, today, trimDecimal, useCategories, withVersion, type Advance, type Category, type Claim, type FuelLog } from "@/lib/api/people";
 import { date } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { useUrlState } from "@/lib/use-url-state";
@@ -197,7 +197,7 @@ function CategoryDialog({ category }: { category?: Category }) {
   const [open, setOpen] = useState(false);
   const init = () => ({
     code: category?.code ?? "", name: category?.name ?? "", gl_key: category?.gl_key ?? "expense_default",
-    per_claim_limit: category?.per_claim_limit ?? "", receipt_required_above: category?.receipt_required_above ?? "",
+    per_claim_limit: moneyInput(category?.per_claim_limit), receipt_required_above: moneyInput(category?.receipt_required_above),
     requires_vehicle: category?.requires_vehicle ?? false, is_active: category?.is_active ?? true,
   });
   const [form, setForm] = useState(init);

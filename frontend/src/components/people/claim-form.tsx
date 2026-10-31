@@ -7,7 +7,7 @@ import { Field } from "@/components/erp/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { compareDecimal, isMoney, sumMoney, today, trimDecimal, type Category, type ClaimLine, type ClaimLineRequest } from "@/lib/api/people";
+import { compareDecimal, isMoney, moneyInput, sumMoney, today, trimDecimal, useMyAdvances, type Advance, type Category, type ClaimLine, type ClaimLineRequest } from "@/lib/api/people";
 import { money } from "@/lib/format";
 
 export type LineDraft = {
@@ -34,7 +34,7 @@ export function lineFromApi(l: ClaimLine): LineDraft {
     category: l.category,
     expense_date: l.expense_date,
     description: l.description,
-    amount: l.amount,
+    amount: moneyInput(l.amount),
     receipt_reference: l.receipt_reference ?? "",
     vehicle_registration: l.vehicle_registration ?? "",
     odometer: l.odometer ? trimDecimal(l.odometer) : "",
@@ -143,5 +143,31 @@ export function ClaimLinesEditor({ lines, onChange, categories, errorsByLine, li
         <span className="num text-lg font-semibold">{money(sumMoney(lines.filter((l) => isMoney(l.amount)).map((l) => l.amount)))}</span>
       </p>
     </div>
+  );
+}
+
+/** Paid advances with money still outstanding: the ones a claim can settle. */
+export function openAdvances(advances: Advance[] | undefined, keep?: string | null): Advance[] {
+  return (advances ?? []).filter((a) => a.id === keep || (a.status === "paid" && compareDecimal(a.outstanding, "0") > 0));
+}
+
+/**
+ * "Settle against an advance": lists the caller's open advances (GET /expenses/my/advances/).
+ * Renders nothing when there is none to settle.
+ */
+export function AdvanceSelect({ value, onChange, error }: { value: string; onChange: (id: string) => void; error?: string }) {
+  const advances = useMyAdvances();
+  const open = openAdvances(advances.data, value);
+  if (open.length === 0) return null;
+  return (
+    <Field id="claim-advance" label="Settle against advance" error={error} hint="The approved claim first repays the advance; only the rest is paid to you.">
+      <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
+        <SelectTrigger id="claim-advance" className="h-11 w-full min-w-0 *:data-[slot=select-value]:block *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">No advance</SelectItem>
+          {open.map((a) => <SelectItem key={a.id} value={a.id}>{a.number} · {money(a.outstanding, a.currency)} outstanding · {a.purpose}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }

@@ -9,23 +9,52 @@ type Issue = { item?: string; issue?: string; billed?: string; received_open?: s
   po_rate?: string; billed_rate?: string; difference?: string };
 type Check = { check: string; subledger: string; gl: string; difference: string; ok: boolean };
 
+/** A quantity without trailing zeros ("45.000000" → "45", "12.500" → "12.5"), grouped Indian style. */
+function qty(value: string | undefined): string {
+  return formatDecimal(value, { dp: 4 }).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+}
+
 const ISSUE_TEXT: Record<string, (i: Issue) => string> = {
-  quantity: (i) => `${i.item}: billed ${i.billed}, but only ${i.received_open ?? i.ordered_open} is open to invoice.`,
+  quantity: (i) => `${i.item}: billed ${qty(i.billed)}, but only ${qty(i.received_open ?? i.ordered_open)} is open to invoice.`,
   no_receipt: (i) => `${i.item}: ${i.detail ?? "needs a goods receipt."}`,
   price: (i) => `${i.item}: billed rate ${i.billed_rate} vs order rate ${i.po_rate} (difference ${formatDecimal(i.difference)}).`,
 };
 
+/**
+ * Refusals that name a control on the caller's own action (403 with a `code`): the server's detail says which
+ * control applied; the hint says what to do next. Screens can replace a hint with something more specific.
+ */
+export type ControlCode = "self_approval" | "maker_checker" | "approval_limit" | "sod";
+const CONTROL_HINT: Record<ControlCode, string> = {
+  self_approval: "Someone else with approval rights has to decide it.",
+  maker_checker: "A second person with the right access has to do this step.",
+  approval_limit: "Someone with a higher approval limit has to approve it.",
+  sod: "A different person has to do this step.",
+};
+
 /** Human copy for errors whose server message is deliberately generic. */
-function explain(error: unknown, context?: { forbidden?: string }): string {
+function explain(error: unknown, context?: { forbidden?: string; hints?: Partial<Record<ControlCode, string>> }): string {
   if (!isApiError(error)) return "The server couldn't be reached. Check your connection and try again.";
   if (error.type === "version_conflict") return "Someone else changed this while you were looking at it. It has been reloaded; check it and try again.";
-  if (error.type === "permission_denied") return context?.forbidden ?? `${error.problem.detail} Another person may need to do this step.`;
+  if (error.type === "permission_denied") {
+    const code = error.problem.code as ControlCode | undefined;
+    if (code && code in CONTROL_HINT) return `${error.problem.detail} ${context?.hints?.[code] ?? CONTROL_HINT[code]}`;
+    return context?.forbidden ?? `${error.problem.detail} Another person may need to do this step.`;
+  }
   if (error.type === "mfa_required") return "This needs a fresh two-step verification. Try again and enter your code.";
   return error.summary();
 }
 
-/** Shows the API's problem detail beside the action that caused it, including structured details. */
-export function ActionError({ error, forbidden, className = "" }: { error: unknown; forbidden?: string; className?: string }) {
+/**
+ * Shows the API's problem detail beside the action that caused it, including structured details.
+ * `forbidden` replaces the generic "no access" refusal; `hints` replace the next-step text for named controls.
+ */
+export function ActionError({ error, forbidden, hints, className = "" }: {
+  error: unknown;
+  forbidden?: string;
+  hints?: Partial<Record<ControlCode, string>>;
+  className?: string;
+}) {
   if (!error) return null;
   const meta = isApiError(error) ? error.problem.meta : undefined;
   const issues = (meta?.issues as Issue[] | undefined) ?? [];
@@ -35,7 +64,7 @@ export function ActionError({ error, forbidden, className = "" }: { error: unkno
     <div role="alert" className={`flex gap-2.5 rounded-md border border-status-rejected/30 bg-status-rejected/10 px-3 py-2.5 text-sm ${className}`}>
       <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-rejected" aria-hidden />
       <div className="min-w-0 space-y-1">
-        <p className="font-medium text-status-rejected">{explain(error, { forbidden })}</p>
+        <p className="font-medium text-status-rejected">{explain(error, { forbidden, hints })}</p>
         {fieldErrors.length > 0 && (
           <ul className="list-disc pl-4 text-foreground/80">
             {fieldErrors.map((e, i) => <li key={i}>{e.field ? `${e.field}: ` : ""}{e.message}</li>)}

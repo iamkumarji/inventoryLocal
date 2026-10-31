@@ -45,7 +45,7 @@ export function PartnerPicker({ id, kind, value, onChange, placeholder }: {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button id={id} type="button" variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+        <Button id={id} type="button" variant="outline" role="combobox" aria-expanded={open} className="w-full min-w-0 justify-between font-normal">
           <span className={cn("truncate", !value && "text-muted-foreground")}>{value ? value.name : placeholder ?? `Choose a ${kind}`}</span>
           <ChevronsUpDown className="opacity-50" aria-hidden />
         </Button>
@@ -132,7 +132,7 @@ export function ItemPicker({ id, value, onChange }: { id?: string; value: ItemOp
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button id={id} type="button" variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal sm:w-80">
+        <Button id={id} type="button" variant="outline" role="combobox" aria-expanded={open} className="w-full min-w-0 justify-between font-normal sm:w-80">
           <span className={cn("truncate", !value && "text-muted-foreground")}>{value ? `${value.code} · ${value.name}` : "Choose an item"}</span>
           <ChevronsUpDown className="opacity-50" aria-hidden />
         </Button>

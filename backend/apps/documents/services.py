@@ -202,7 +202,7 @@ def create_document(
     resource_id: str = "",
     declared_type: str | None = None,
 ) -> Document:
-    record_company, record_id = None, ""
+    record_company, record_id, record = None, "", None
     if resource_type or resource_id:
         if not (resource_type and resource_id):
             raise ValidationError({"resource_id": ["Give both resource_type and resource_id."]})
@@ -215,7 +215,12 @@ def create_document(
         raise ValidationError({"company": ["Select a company."]})
     if record_company is not None and record_company != company_id:
         raise ValidationError({"company": ["The document must belong to the linked record's company."]})
-    pdp.require(ctx, f"{DOC}.create", pdp.Resource.ref(DOC, company_id=company_id))
+    # An attachment is authorized where its record lives (a driver granted on a branch attaches a delivery
+    # note to that branch's shipment); a standalone document at company level.
+    scope = pdp.Resource.ref(DOC, company_id=company_id)
+    if record is not None and getattr(record, "authz_scope_fields", None):
+        scope = pdp.Resource(DOC, {**record.authz_attributes(), "type": DOC}, dict(record.authz_scope_fields))
+    pdp.require(ctx, f"{DOC}.create", scope)
     validated = uploads.validate(upload, declared_type)
     doc = Document.objects.create(
         company_id=company_id,

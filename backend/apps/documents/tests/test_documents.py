@@ -322,3 +322,25 @@ def test_mobile_upload_replay_does_not_duplicate(owner, api_for):
     assert first.status_code == again.status_code == 201
     assert again["Idempotent-Replayed"] == "true" and again.json()["id"] == first.json()["id"]
     assert Document.objects.filter(title="POD photo").count() == 1
+
+
+def test_access_list_and_versions_name_people(owner, reader, api_for, ref):
+    # The document screen lists grants and uploads by person; ids alone showed "A colleague".
+    client = api_for(owner)
+    doc = upload(client, confidentiality="confidential", **ref).json()
+    assert doc["current_version"]["uploaded_by_name"] == owner.full_name
+    client.post(f"{URL}{doc['id']}/acl/", {"user": str(reader.pk), "permission": "read"}, format="json")
+    entries = client.get(f"{URL}{doc['id']}/acl/").json()
+    assert (str(reader.pk), reader.full_name, None) in [(e["user"], e["user_name"], e["role_name"]) for e in entries]
+    versions = client.get(f"{URL}{doc['id']}/versions/").json()
+    assert versions[0]["uploaded_by_name"] == owner.full_name
+
+
+def test_attachment_is_authorized_at_the_records_scope(make_user, grant, record, ref, company, api_for):
+    """Someone granted only on a record's unit (a driver on a branch, here a department) can attach to
+    that record, but can't create standalone company documents."""
+    clerk = make_user()
+    grant(clerk, ["documents.document.create", "documents.document.read", "organization.department.read"], record)
+    client = api_for(clerk, company=company)
+    assert upload(client, **ref).status_code == 201
+    assert upload(client).status_code == 403

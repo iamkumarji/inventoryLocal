@@ -91,7 +91,7 @@ function MyLeave() {
   const year = Number(today().slice(0, 4));
   const current = (balances.data ?? []).filter((b) => b.year === year);
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       <section aria-labelledby="balances-heading">
         <h2 id="balances-heading" className="type-section mb-2">Balances {year}</h2>
         {balances.isLoading ? <RowsSkeleton rows={2} /> : balances.error ? <ErrorState error={balances.error} onRetry={balances.refetch} /> : current.length === 0 ? (
@@ -114,7 +114,7 @@ function MyLeave() {
         {requests.isLoading ? <RowsSkeleton rows={3} /> : requests.error ? <ErrorState error={requests.error} onRetry={requests.refetch} /> : requests.data!.length === 0 ? (
           <Card><EmptyState title="No leave requests yet" /></Card>
         ) : (
-          <ul className="grid gap-2">
+          <ul className="grid grid-cols-1 gap-2">
             {requests.data!.map((r) => (
               <li key={r.id}>
                 <Card className="flex flex-wrap items-center gap-3 px-4 py-3">

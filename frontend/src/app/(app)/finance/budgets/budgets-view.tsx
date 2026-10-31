@@ -80,7 +80,7 @@ function spread(total: string, n: number): string[] {
   const paise = toUnits(total) / BigInt(100);
   const base = paise / BigInt(n);
   const last = paise - base * BigInt(n - 1);
-  return Array.from({ length: n }, (_, i) => fromUnits((i === n - 1 ? last : base) * BigInt(100), 2));
+  return Array.from({ length: n }, (_, i) => trimDecimal(fromUnits((i === n - 1 ? last : base) * BigInt(100), 2)));
 }
 
 function YearToDate() {
@@ -124,7 +124,7 @@ function VsActual({ budgetId }: { budgetId: string }) {
     }>
       {rows.map((r, i) => (
         <Row key={`${r.account}-${r.cost_center_id}-${i}`}>
-          <Cell className="min-w-48"><span className="mr-2 text-muted-foreground">{r.account}</span><span className="font-sans">{r.name}</span></Cell>
+          <Cell className="min-w-48"><span className="mr-2 text-muted-foreground">{r.account}</span>{" "}<span className="font-sans">{r.name}</span></Cell>
           <Cell>{cc(r.cost_center_id)}</Cell>
           <Cell align="right"><Amount value={r.planned} /></Cell>
           <Cell align="right"><Amount value={r.actual} /></Cell>
@@ -213,7 +213,7 @@ function BudgetEditor({ budget, onDone, onCancel }: { budget?: Budget; onDone: (
       <form className="grid gap-5 px-5 py-4" onSubmit={(e) => { e.preventDefault(); if (ready) save.mutate(); }}>
         <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <Field id="budget-name" label="Name">
-            <Input id="budget-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} placeholder="e.g. Operating budget FY 2026-27" />
+            <Input id="budget-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} placeholder="e.g. Operating budget FY 2026-27" />
           </Field>
           <Field id="budget-year" label="Fiscal year"
             error={years.error ? (isApiError(years.error) && years.error.status === 403 ? "You can't list fiscal years. Ask for organization fiscal-year read access." : "Couldn't load fiscal years.") : undefined}
@@ -255,7 +255,7 @@ function BudgetEditor({ budget, onDone, onCancel }: { budget?: Budget; onDone: (
                   <Trash2 aria-hidden />
                 </Button>
               </div>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 min-[30rem]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-6">
                 {periods.map((p) => (
                   <div key={p.no} className="grid min-w-0 gap-1">
                     <Label htmlFor={`amt-${r.key}-${p.no}`} className="text-xs text-muted-foreground">{p.label}</Label>
@@ -307,7 +307,7 @@ function LinesGrid({ budget, year }: { budget: Budget; year: FiscalYear | undefi
   if (rows.length === 0) return <EmptyState icon={Scale} title="No lines yet" description="Edit the draft to add monthly amounts." />;
   const accountLabel = (id: string) => {
     const a = accounts.data?.find((x) => x.id === id);
-    return a ? <><span className="mr-2 text-muted-foreground">{a.code}</span><span className="font-sans">{a.name}</span></> : budget.lines.find((l) => l.account === id)?.account_code ?? "—";
+    return a ? <><span className="mr-2 text-muted-foreground">{a.code}</span>{" "}<span className="font-sans">{a.name}</span></> : budget.lines.find((l) => l.account === id)?.account_code ?? "—";
   };
   const cc = (id: string) => (id ? costCenters.data?.results.find((c) => c.id === id)?.code ?? "—" : "All");
   return (
@@ -369,9 +369,6 @@ function BudgetPanel({ budgetId, editing, onEdit, onEditDone, onClose }: {
   const year = years.data?.results.find((y) => y.id === b.fiscal_year);
   const draft = b.status === "draft";
   const preparedByMe = b.created_by === me.user.id;
-  const makerChecker = isApiError(approve.error) && approve.error.problem.code === "maker_checker"
-    ? `${approve.error.problem.detail} Ask a colleague with budget approval rights to approve it.`
-    : undefined;
 
   return (
     <>
@@ -410,7 +407,10 @@ function BudgetPanel({ budgetId, editing, onEdit, onEditDone, onClose }: {
             {draft && preparedByMe && !approve.error && (
               <p className="text-sm text-muted-foreground">You prepared this budget, so a colleague with budget approval rights must approve it.</p>
             )}
-            <ActionError error={approve.error} forbidden={makerChecker} />
+            <ActionError error={approve.error} hints={{
+              self_approval: "Ask a colleague with budget approval rights to approve it.",
+              maker_checker: "Ask a colleague with budget approval rights to approve it.",
+            }} />
           </div>
         )}
         <LinesGrid budget={b} year={year} />

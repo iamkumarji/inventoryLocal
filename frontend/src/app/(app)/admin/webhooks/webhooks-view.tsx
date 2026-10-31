@@ -78,7 +78,7 @@ function NewEndpoint() {
             </OneTimeSecret>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => close(false)}>Close</Button>
-              <Button asChild><Link href={`/admin/webhooks/${created.endpoint.id}`}>Open endpoint <ArrowRight aria-hidden /></Link></Button>
+              <Button asChild><Link href={`/admin/webhooks/${created.endpoint.id}`} onClick={() => close(false)}>Open endpoint <ArrowRight aria-hidden /></Link></Button>
             </DialogFooter>
           </div>
         ) : (

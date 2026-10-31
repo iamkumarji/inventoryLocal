@@ -47,9 +47,17 @@ export default function Proof() {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.granted) {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        latitude = pos.coords.latitude.toFixed(6);
-        longitude = pos.coords.longitude.toFixed(6);
+        // Poor GPS mustn't hold the proof hostage: after 10 seconds it is saved without a location.
+        const pos = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+        ]);
+        if (pos) {
+          latitude = pos.coords.latitude.toFixed(6);
+          longitude = pos.coords.longitude.toFixed(6);
+        } else {
+          setMessage("Location took too long; the proof is saved without it.");
+        }
       }
     } catch {
       setMessage("Location unavailable; the proof is saved without it.");

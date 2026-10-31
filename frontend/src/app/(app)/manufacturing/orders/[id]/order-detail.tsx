@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardCheck, Lock, PackageCheck, PackageMinus, Play, Timer, Trash } from "lucide-react";
+import { Ban, ClipboardCheck, Lock, PackageCheck, PackageMinus, Play, Timer, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -167,6 +167,23 @@ function CloseDialog({ order, ...props }: ActionProps) {
   );
 }
 
+function CancelDialog({ order, ...props }: ActionProps) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const cancel = useOrderAction(() => unwrap(api.POST("/api/v1/manufacturing/orders/{id}/cancel/", {
+    params: { path: { id: order.id } }, body: { reason },
+  })), props, `${order.number || "Draft order"} cancelled`, () => { setOpen(false); setReason(""); });
+  return (
+    <ActionDialog open={open} onOpenChange={setOpen} trigger={props.trigger} title={`Cancel ${order.number || "this draft order"}`}
+      description={order.status === "released"
+        ? "Releases the material reservations. Only possible before anything is issued, booked, received or scrapped; after that, close the order instead."
+        : "The draft is kept for the record but can no longer be released."}
+      submitLabel="Cancel order" destructive pending={cancel.isPending} error={cancel.error} disabled={!reason.trim()} onSubmit={() => cancel.mutate(undefined)}>
+      <Field id="cancel-reason" label="Reason"><Input id="cancel-reason" className="h-10" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} /></Field>
+    </ActionDialog>
+  );
+}
+
 function AvailabilitySection({ order }: { order: ProductionOrder }) {
   const [asked, setAsked] = useState(false);
   const rows = useQuery({
@@ -262,6 +279,10 @@ export function OrderDetail() {
   const active = o.status === "released" || o.status === "in_progress";
   const closable = active || o.status === "completed";
   const costing = o.costing as unknown as Costing;
+  // Cancelling is only for orders nothing has happened on yet (the server enforces the same rule).
+  const untouched = !dec.positive(o.produced_quantity) && !dec.positive(o.scrapped_quantity)
+    && o.materials.every((m) => !dec.positive(m.issued_quantity)) && o.operations.every((op) => !dec.positive(op.actual_minutes));
+  const cancellable = (o.status === "draft" || o.status === "released") && untouched;
   const props = { order: o, onDone, onFail };
   const P = "manufacturing.production_order";
 
@@ -287,13 +308,16 @@ export function OrderDetail() {
           {active && can(`${P}.receive`) && <OutputDialog {...props} trigger={<FloorButton><PackageCheck aria-hidden /> Receive output</FloorButton>} />}
           {active && can(`${P}.confirm`) && <ScrapDialog {...props} trigger={<FloorButton variant="outline"><Trash aria-hidden /> Record scrap</FloorButton>} />}
           {closable && can(`${P}.close`) && <CloseDialog {...props} trigger={<FloorButton variant="outline"><Lock aria-hidden /> Close order</FloorButton>} />}
+          {cancellable && can(`${P}.cancel`) && (
+            <CancelDialog {...props} trigger={<FloorButton variant="outline" className="h-12 min-w-0 justify-start border-status-rejected/40 px-4 text-base text-status-rejected hover:bg-status-rejected/10"><Ban aria-hidden /> Cancel order</FloorButton>} />
+          )}
           {!active && !closable && o.status !== "draft" && <p className="text-sm text-muted-foreground">This order is {o.status}. No further shop-floor actions.</p>}
         </div>
         {release.error && <div className="px-5 pb-4"><FormError message={problemMessage(release.error)} /></div>}
       </Section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {o.status === "draft" && <AvailabilitySection order={o} />}
           <Section title="Materials" description={o.materials.length ? "Frozen from the BOM at release." : "Materials are frozen from the BOM when the order is released."}>
             {o.materials.length > 0 && (
@@ -301,7 +325,7 @@ export function OrderDetail() {
                 <Table>
                   <TableHeader><TableRow className="hover:bg-transparent">
                     <TableHead>Component</TableHead><TableHead className="text-right">Required</TableHead><TableHead className="text-right">Issued</TableHead>
-                    <TableHead className="text-right">Consumed</TableHead><TableHead className="text-right">Returned</TableHead><TableHead className="text-right">In WIP</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">Consumed</TableHead><TableHead className="hidden text-right sm:table-cell">Returned</TableHead><TableHead className="text-right">In WIP</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
                     {o.materials.map((m) => (
@@ -309,8 +333,8 @@ export function OrderDetail() {
                         <TableCell><span className="num block font-medium">{m.item_code}</span><span className="block text-xs text-muted-foreground">{m.issue_method === "backflush" ? "Backflush" : "Manual issue"}</span></TableCell>
                         <TableCell className="num text-right">{qty(m.required_quantity)}</TableCell>
                         <TableCell className="num text-right">{qty(m.issued_quantity)}</TableCell>
-                        <TableCell className="num text-right">{qty(m.consumed_quantity)}</TableCell>
-                        <TableCell className="num text-right">{qty(m.returned_quantity)}</TableCell>
+                        <TableCell className="num hidden text-right sm:table-cell">{qty(m.consumed_quantity)}</TableCell>
+                        <TableCell className="num hidden text-right sm:table-cell">{qty(m.returned_quantity)}</TableCell>
                         <TableCell className="num text-right font-medium">{qty(inWip(m))}</TableCell>
                       </TableRow>
                     ))}
@@ -337,7 +361,7 @@ export function OrderDetail() {
             )}
           </Section>
         </div>
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           <CostingSection costing={costing} />
           <Section title="Order">
             <Facts items={[

@@ -23,7 +23,7 @@ from apps.inventory.models import (
     StockLedgerEntry,
     StockTransfer,
 )
-from apps.masterdata.models import ItemBarcode
+from apps.masterdata.models import Item, ItemBarcode
 from apps.organization.models import Warehouse
 from apps.shared.docviews import ReasonBody
 from apps.shared.viewsets import MasterDataViewSet, master_schema
@@ -132,7 +132,7 @@ class AgeingView(APIView):
 
 
 class ScanView(APIView):
-    """Resolve a scanned code to an item, batch, serial or bin."""
+    """Resolve a scanned or typed code to an item (barcode or item code), batch, serial or bin."""
 
     authz_resource = "masterdata.item"
     authz_actions = {"get": "read"}
@@ -158,6 +158,10 @@ class ScanView(APIView):
                     "uom_id": str(barcode.uom_id) if barcode.uom_id else None,
                 }
             )
+        # Item codes too, so one call resolves anything a scanner or a person types (no 404-then-retry).
+        item = Item.objects.filter(organization_id=request.user.organization_id, code=code).first()
+        if item:
+            return Response({"kind": "item", "item_id": str(item.pk), "item_code": item.code, "uom_id": None})
         serial = SerialNumber.objects.filter(company_id=ctx.company_id, serial=code).select_related("item").first()
         if serial:
             return Response(

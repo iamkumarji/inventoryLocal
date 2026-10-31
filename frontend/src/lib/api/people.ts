@@ -84,6 +84,15 @@ export function useCategories(enabled = true) {
   });
 }
 
+/** The caller's own advances (self-service), newest first. */
+export function useMyAdvances(enabled = true) {
+  return useQuery({
+    queryKey: ["people", "my", "advances"],
+    queryFn: () => unwrap(api.GET("/api/v1/expenses/my/advances/")),
+    enabled,
+  });
+}
+
 export function useSalaryComponents(enabled = true) {
   return useQuery({
     queryKey: ["people", "salary-components"],
@@ -104,12 +113,24 @@ export function useSalaryStructures(enabled = true) {
 
 export type RowError = { row?: number | null; line?: number | null; field?: string | null; message: string };
 
+/** 403 refusal codes whose `detail` explains the control (self-approval, maker-checker, limit, SoD). */
+export const EXPLAINED_REFUSALS = new Set(["self_approval", "maker_checker", "approval_limit", "sod"]);
+
+/** The refusal code of a 403 that explains a control on the caller's own action, if any. */
+export function refusalCode(error: unknown): string | null {
+  if (!isApiError(error) || error.status !== 403) return null;
+  const code = error.problem.code;
+  return code && EXPLAINED_REFUSALS.has(code) ? code : null;
+}
+
 /** One readable line for a failed mutation, with a clear message for edit conflicts. */
 export function errorText(error: unknown): string {
   if (!isApiError(error)) return "Couldn't reach the server. Check your connection.";
   if (error.type === "version_conflict") return "Someone else changed this record. The latest version is loaded; check it and try again.";
   if (error.type === "mfa_required") return "This needs a fresh two-step verification.";
-  if (error.status === 403) return "You can't do this. The server refused: you may lack the permission, or you can't act on your own request.";
+  // Controls on the caller's own action come back with a code and a readable reason: show it.
+  if (error.status === 403 && error.problem.code && EXPLAINED_REFUSALS.has(error.problem.code)) return error.problem.detail;
+  if (error.status === 403) return "You can't do this. The server refused: you may lack the permission for it.";
   return error.summary();
 }
 
@@ -163,6 +184,14 @@ export function trimDecimal(value: string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "—";
   if (!value.includes(".")) return value;
   return value.replace(/0+$/, "").replace(/\.$/, "");
+}
+
+/**
+ * An API amount (NUMERIC(20,4), e.g. "1200.0000") as an editable input value ("1200"), so forms that
+ * accept at most two decimals don't reject untouched values.
+ */
+export function moneyInput(value: string | null | undefined): string {
+  return value === null || value === undefined || value === "" ? "" : trimDecimal(value);
 }
 
 /** Today in the browser's local calendar as YYYY-MM-DD. */

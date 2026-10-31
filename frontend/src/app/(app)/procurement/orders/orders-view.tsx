@@ -107,7 +107,7 @@ export function OrdersView() {
     { key: "expected", header: "Expected", cell: (o) => date(o.expected_date) },
     { key: "amount", header: "Total", align: "right", cell: (o) => <Money value={o.amount} /> },
     { key: "status", header: "Status", cell: (o) => <DocStatus status={o.status} /> },
-    { key: "receipt", header: "Receipt", cell: (o) => (o.status === "approved" ? <DocStatus status={o.receipt_status} /> : <span className="text-muted-foreground">—</span>) },
+    { key: "receipt", header: "Receipt", cell: (o) => (o.status === "approved" ? <DocStatus status={o.receipt_status} label={o.receipt_status === "open" ? "Not received" : undefined} /> : <span className="text-muted-foreground">—</span>) },
   ];
   return (
     <>

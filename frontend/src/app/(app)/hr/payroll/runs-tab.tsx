@@ -90,7 +90,7 @@ export function RunsTab() {
             <SelectTrigger className="w-36" aria-label="Status"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Any status</SelectItem>
-              {["draft", "computed", "submitted", "approved", "rejected", "posted"].map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
+              {["draft", "computed", "submitted", "approved", "rejected", "posted", "reversed"].map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
             </SelectContent>
           </Select>
           {can("hr.payroll_run.create") && <NewRun />}

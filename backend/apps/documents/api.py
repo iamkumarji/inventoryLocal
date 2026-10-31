@@ -35,9 +35,21 @@ class _OrgField(serializers.PrimaryKeyRelatedField):
 
 
 class DocumentVersionSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source="uploaded_by.full_name", read_only=True, allow_null=True)
+
     class Meta:
         model = DocumentVersion
-        fields = ["id", "version_no", "filename", "content_type", "size", "sha256", "uploaded_by", "uploaded_at"]
+        fields = [
+            "id",
+            "version_no",
+            "filename",
+            "content_type",
+            "size",
+            "sha256",
+            "uploaded_by",
+            "uploaded_by_name",
+            "uploaded_at",
+        ]
         read_only_fields = fields
 
 
@@ -122,11 +134,14 @@ class DownloadSerializer(serializers.Serializer):
 class AclSerializer(serializers.ModelSerializer):
     user = _OrgField(queryset=User.objects.filter(is_active=True), required=False, allow_null=True)
     role = _OrgField(queryset=Role.objects.filter(is_active=True), required=False, allow_null=True)
+    # Display names: the access list must say who holds a grant, not just an id.
+    user_name = serializers.CharField(source="user.full_name", read_only=True, allow_null=True)
+    role_name = serializers.CharField(source="role.name", read_only=True, allow_null=True)
 
     class Meta:
         model = DocumentACL
-        fields = ["id", "user", "role", "permission", "granted_by", "granted_at"]
-        read_only_fields = ["id", "granted_by", "granted_at"]
+        fields = ["id", "user", "user_name", "role", "role_name", "permission", "granted_by", "granted_at"]
+        read_only_fields = ["id", "user_name", "role_name", "granted_by", "granted_at"]
 
 
 RECORD_FILTERS = [

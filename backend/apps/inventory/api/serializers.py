@@ -201,6 +201,9 @@ class TransferSerializer(serializers.ModelSerializer):
 class CountLineSerializer(serializers.ModelSerializer):
     item_code = serializers.CharField(source="item.code", read_only=True)
     item_name = serializers.CharField(source="item.name", read_only=True)
+    # Counters need to know which batch and bin a line is for (the same item can have several lines).
+    batch_number = serializers.CharField(source="batch.batch_number", default=None, read_only=True)
+    location_code = serializers.CharField(source="location.code", default=None, read_only=True)
 
     class Meta:
         model = StockCountLine
@@ -210,7 +213,9 @@ class CountLineSerializer(serializers.ModelSerializer):
             "item_code",
             "item_name",
             "location",
+            "location_code",
             "batch",
+            "batch_number",
             "system_quantity",
             "counted_quantity",
             "counted_by",
@@ -244,7 +249,9 @@ class CountSerializer(serializers.ModelSerializer):
             )
         else:
             context["hide_system"] = False
-        return CountLineSerializer(obj.lines.select_related("item"), many=True, context=context).data
+        return CountLineSerializer(
+            obj.lines.select_related("item", "batch", "location"), many=True, context=context
+        ).data
 
 
 class CountStartSerializer(serializers.Serializer):

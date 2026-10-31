@@ -57,6 +57,10 @@ function Upload() {
     onSuccess: (doc) => {
       queryClient.invalidateQueries({ queryKey: ["documents", "library"] });
       toast(`${doc.title} uploaded`);
+      // Next keeps the library mounted; close and clear the dialog so it isn't open when the user comes back.
+      setOpen(false);
+      setFile(null);
+      setForm({ title: "", category: "", description: "", confidentiality: "internal", retention_until: "" });
       router.push(`/documents/${doc.id}`);
     },
   });

@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.routers import SimpleRouter
 from rest_framework.views import APIView
 
+from apps.audit.models import AuditEvent
 from apps.authorization.context import actor_for
 from apps.authorization.drf import ScopedPrimaryKeyRelatedField
 from apps.core.idempotency import idempotency_header, idempotent
@@ -35,6 +36,19 @@ DOC = [
     "created_by",
     "created_at",
 ]
+
+
+def _rejection_reason(type_: str, doc) -> str:
+    """The approver's comment on a rejected document (kept in the audit trail), so the employee can fix it."""
+    if doc.status != "rejected":
+        return ""
+    event = (
+        AuditEvent.objects.filter(action=f"{type_}.rejected", resource_type=type_, resource_id=str(doc.pk))
+        .order_by("-occurred_at")
+        .only("summary")
+        .first()
+    )
+    return event.summary if event else ""
 
 
 def _own_employee_or(ctx, employee):
@@ -90,7 +104,7 @@ class CategoryViewSet(MasterDataViewSet):
 
 
 class ClaimLineSerializer(serializers.ModelSerializer):
-    category = serializers.PrimaryKeyRelatedField(queryset=ExpenseCategory.objects.filter(is_active=True))
+    category = OrgScopedPK(queryset=ExpenseCategory.objects.filter(is_active=True), org_path="company__organization_id")
     category_code = serializers.CharField(source="category.code", read_only=True)
 
     class Meta:
@@ -120,10 +134,11 @@ class ClaimSerializer(serializers.ModelSerializer):
     cost_center = OrgScopedPK(
         queryset=CostCenter.objects.all(), org_path="company__organization_id", required=False, allow_null=True
     )
-    advance = serializers.PrimaryKeyRelatedField(
-        queryset=EmployeeAdvance.objects.all(), required=False, allow_null=True
+    advance = OrgScopedPK(
+        queryset=EmployeeAdvance.objects.all(), org_path="company__organization_id", required=False, allow_null=True
     )
     lines = ClaimLineSerializer(many=True)
+    rejection_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = ExpenseClaim
@@ -145,6 +160,7 @@ class ClaimSerializer(serializers.ModelSerializer):
             "paid_on",
             "bank_reference",
             "payment_journal",
+            "rejection_reason",
         ]
         read_only_fields = [
             *DOC,
@@ -159,6 +175,9 @@ class ClaimSerializer(serializers.ModelSerializer):
             "payment_journal",
         ]
 
+    def get_rejection_reason(self, obj) -> str:
+        return _rejection_reason(services.CLAIM, obj)
+
 
 class ClaimUpdateSerializer(serializers.Serializer):
     claim_date = serializers.DateField(required=False)
@@ -169,8 +188,8 @@ class ClaimUpdateSerializer(serializers.Serializer):
     cost_center = OrgScopedPK(
         queryset=CostCenter.objects.all(), org_path="company__organization_id", required=False, allow_null=True
     )
-    advance = serializers.PrimaryKeyRelatedField(
-        queryset=EmployeeAdvance.objects.all(), required=False, allow_null=True
+    advance = OrgScopedPK(
+        queryset=EmployeeAdvance.objects.all(), org_path="company__organization_id", required=False, allow_null=True
     )
     lines = ClaimLineSerializer(many=True, required=False)
     version = serializers.IntegerField()
@@ -315,6 +334,7 @@ class AdvanceSerializer(serializers.ModelSerializer):
         queryset=Branch.objects.all(), org_path="company__organization_id", required=False, allow_null=True
     )
     outstanding = serializers.DecimalField(max_digits=20, decimal_places=4, read_only=True)
+    rejection_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = EmployeeAdvance
@@ -331,6 +351,7 @@ class AdvanceSerializer(serializers.ModelSerializer):
             "paid_on",
             "bank_reference",
             "payment_journal",
+            "rejection_reason",
         ]
         read_only_fields = [f for f in DOC if f != "amount"] + [
             "employee_name",
@@ -342,6 +363,9 @@ class AdvanceSerializer(serializers.ModelSerializer):
             "bank_reference",
             "payment_journal",
         ]
+
+    def get_rejection_reason(self, obj) -> str:
+        return _rejection_reason(services.ADVANCE, obj)
 
 
 class AdvanceViewSet(DocumentViewSet):

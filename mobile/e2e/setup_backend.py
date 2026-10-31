@@ -16,6 +16,7 @@ from apps.approvals.management.commands.seed_demo import DEMO_PASSWORD
 from apps.authorization import services as authz
 from apps.core.context import ActorContext
 from apps.core.ids import uuid7
+from apps.core import flags
 from apps.core.models import FeatureFlag
 from apps.expenses.models import ExpenseCategory
 from apps.hr import services as hr
@@ -47,6 +48,7 @@ stores = Department.objects.get(company=company, code="STORES")
 with transaction.atomic():
     for module in ("masterdata", "partners", "inventory", "procurement", "sales", "logistics", "hr", "expenses", "documents"):
         FeatureFlag.objects.filter(key=f"module.{module}").update(enabled_default=True)
+    flags.invalidate()  # direct updates bypass the admin API, which normally clears the flag cache
     company.state_code = "27"
     company.save(update_fields=["state_code"])
 
@@ -94,7 +96,9 @@ with transaction.atomic():
         "expenses.expense_claim.read", "expenses.expense_claim.update", "documents.document.create",
     ], "branch", pune.pk)
     # Expense categories are company-wide master data.
-    grant(storekeeper, "demo_mobile_expense_setup", ["expenses.expense_category.read"], "company", company.pk)
+    # Company-wide, as the Employee role template grants them: categories, and unlinked documents (receipts).
+    grant(storekeeper, "demo_mobile_expense_setup", ["expenses.expense_category.read", "documents.document.create"],
+          "company", company.pk)
     hr.create_employee(ctx, company=company, department=stores, code="E-STR-01", full_name="Sunil Patil (DEMO)",
                        date_of_joining=today - timedelta(days=400), user=storekeeper, branch=pune)
     ExpenseCategory.objects.create(company=company, code="TRAVEL", name="Local travel (DEMO)", gl_key="travel_expense",

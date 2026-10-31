@@ -206,8 +206,8 @@ export function WorkOrderDetail() {
         </div>
         {close.error && <div className="px-5 pb-4"><FormError message={problemMessage(close.error)} /></div>}
       </Section>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="grid min-w-0 content-start gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {wo.description && <Section title="Description"><p className="px-5 py-4 text-sm whitespace-pre-wrap">{wo.description}</p></Section>}
           {checklist.length > 0 && (
             <Section title="Checklist">
@@ -241,7 +241,7 @@ export function WorkOrderDetail() {
             )}
           </Section>
         </div>
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           <Section title="Details">
             <Facts items={[
               ["Technician", wo.technician ? person(wo.technician, "Assigned") : "Unassigned"],

@@ -292,7 +292,7 @@ def release_order(ctx: ActorContext, order: ProductionOrder) -> ProductionOrder:
         resource_type=PO,
         resource_id=order.pk,
         company_id=order.company_id,
-        summary=f"{order.number}: {order.quantity.normalize()} x {order.item.code}",
+        summary=f"{order.number}: {order.quantity.normalize():f} x {order.item.code}",
     )
     publish_event("manufacturing.order.released", aggregate_type=PO, aggregate_id=order.pk, company_id=order.company_id)
     return order
@@ -428,10 +428,11 @@ def receive_output(
     moves = []
     remaining_share = order.quantity - order.produced_quantity
     for material in order.materials.select_for_update(of=("self",)).select_related("item__category", "reservation"):
+        need = (material.per_unit * quantity).quantize(Q6, rounding=ROUND_HALF_UP)
         if order.produced_quantity + quantity >= order.quantity:
-            need = material.required_quantity - material.consumed_quantity  # final receipt consumes the rest
-        else:
-            need = (material.per_unit * quantity).quantize(Q6, rounding=ROUND_HALF_UP)
+            # The final receipt consumes the rest (absorbs rounding), but never less than the output
+            # needs: scrap also counts in consumed_quantity and must not reduce what the output uses.
+            need = max(need, material.required_quantity - material.consumed_quantity)
         if material.issue_method == BomComponent.IssueMethod.BACKFLUSH:
             moves.append(
                 Move(

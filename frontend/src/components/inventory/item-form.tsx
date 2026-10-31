@@ -3,6 +3,7 @@
 import { Lock } from "lucide-react";
 
 import { Field } from "@/components/erp/field";
+import { dec } from "@/components/inventory/decimal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +35,7 @@ export function draftFromItem(i: Item): ItemDraft {
     shelf_life_days: i.shelf_life_days === null || i.shelf_life_days === undefined ? "" : String(i.shelf_life_days), hsn: i.hsn ?? "",
     is_stocked: i.is_stocked ?? true, is_purchasable: i.is_purchasable ?? true, is_saleable: i.is_saleable ?? false,
     is_manufactured: i.is_manufactured ?? false, inspection_required: i.inspection_required ?? false,
-    standard_cost: i.standard_cost ?? "0", is_active: i.is_active ?? true,
+    standard_cost: i.standard_cost ? dec.normalize(i.standard_cost) : "0", is_active: i.is_active ?? true,
   };
 }
 
@@ -118,7 +119,7 @@ export function ItemFields({ draft, onChange, mode, errors, locked, disabled }: 
         <Field id="it-hsn" label="HSN / SAC code" error={errors.hsn}>
           <Select value={draft.hsn || NONE} onValueChange={(v) => set("hsn", v === NONE ? "" : v)} disabled={disabled}>
             <SelectTrigger id="it-hsn" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={NONE}>None</SelectItem>{hsn.data?.results.filter((h) => h.is_active !== false || h.id === draft.hsn).map((h) => <SelectItem key={h.id} value={h.id}><span className="num">{h.code}</span> <span className="text-muted-foreground">{h.gst_rate}% GST</span></SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value={NONE}>None</SelectItem>{hsn.data?.results.filter((h) => h.is_active !== false || h.id === draft.hsn).map((h) => <SelectItem key={h.id} value={h.id}><span className="num">{h.code}</span> <span className="text-muted-foreground">{dec.normalize(h.gst_rate)}% GST</span></SelectItem>)}</SelectContent>
           </Select>
         </Field>
         <div className="grid grid-cols-2 gap-4">

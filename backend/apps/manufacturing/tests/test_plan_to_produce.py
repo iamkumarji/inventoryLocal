@@ -226,3 +226,69 @@ def test_scrap_and_leftover_wip_returned_on_close(factory, ctx, books, plant):
     assert brackets.returned_quantity == D("6")  # 20 issued - 2 scrapped - 12 consumed
     assert selectors.availability(books.pk, factory["bracket"].pk, plant["wip"].pk)["on_hand"] == D("0")
     assert gl_balance(books, "1310") == D("0")
+
+
+@pytest.mark.req("MFG-010")
+def test_scrap_does_not_reduce_what_the_final_receipt_consumes(factory, ctx, books, plant):
+    # Regression: the final receipt consumed `required - consumed`, and scrap counts as consumed, so
+    # a scrapped bracket left a phantom one in WIP (returned to stores on close) and under-costed output.
+    sup = ctx(factory["supervisor"])
+    order = services.release_order(
+        sup,
+        services.create_order(
+            sup,
+            company=books,
+            facility=plant["facility"],
+            item=factory["cabinet"],
+            quantity=D("5"),
+            planned_start=TODAY(),
+            planned_end=TODAY(),
+            source_warehouse=plant["rm"],
+            wip_warehouse=plant["wip"],
+            output_warehouse=plant["fg"],
+        ),
+    )
+    brackets = order.materials.get(item=factory["bracket"])
+    assert brackets.required_quantity == D("20")
+    services.issue_materials(sup, order, lines=[{"material": brackets, "quantity": D("22")}], on=TODAY())
+    services.record_scrap(sup, order, material=brackets, quantity=D("2"), on=TODAY(), reason="Bent in press")
+    services.receive_output(sup, order, quantity=D("5"), on=TODAY())  # all five need 20 brackets
+    brackets.refresh_from_db()
+    assert brackets.consumed_quantity == D("22")  # 20 into output + 2 scrapped
+    order = services.close_order(sup, order, on=TODAY())
+    brackets.refresh_from_db()
+    assert brackets.returned_quantity == D("0")
+    assert selectors.availability(books.pk, factory["bracket"].pk, plant["wip"].pk)["on_hand"] == D("0")
+
+
+def test_release_audit_summary_shows_plain_quantities(factory, ctx, books, plant):
+    # Regression: Decimal.normalize() rendered 10 as "1E+1" in the activity timeline.
+    from apps.audit.models import AuditEvent
+
+    sup = ctx(factory["supervisor"])
+    order = services.release_order(
+        sup,
+        services.create_order(
+            sup,
+            company=books,
+            facility=plant["facility"],
+            item=factory["cabinet"],
+            quantity=D("10"),
+            planned_start=TODAY(),
+            planned_end=TODAY(),
+            source_warehouse=plant["rm"],
+            wip_warehouse=plant["wip"],
+            output_warehouse=plant["fg"],
+        ),
+    )
+    event = AuditEvent.objects.get(resource_id=str(order.pk), action="manufacturing.production_order.released")
+    assert event.summary == f"{order.number}: 10 x CABINET"
+
+
+def test_bom_versions_name_their_maker_and_approver(factory, api_for, books):
+    # The BOM screen shows "drafted by … · approved by …"; ids alone can't be shown to people.
+    response = api_for(factory["approver"], company=books).get(f"/api/v1/manufacturing/boms/{factory['bom'].pk}/")
+    assert response.status_code == 200
+    version = response.json()["versions"][0]
+    assert version["created_by_name"] == factory["engineer"].full_name
+    assert version["approved_by_name"] == factory["approver"].full_name

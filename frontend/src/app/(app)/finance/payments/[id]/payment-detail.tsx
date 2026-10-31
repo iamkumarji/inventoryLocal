@@ -106,7 +106,8 @@ export function PaymentDetail() {
         {p.status === "approved" && supplier && p.mode !== "cash" && (
           <p className="text-sm text-muted-foreground">Posting checks that {p.partner_name} has a verified bank account on file.</p>
         )}
-        <ActionError error={act.error} forbidden="You can't do this step on this payment. Approval and posting need someone other than the person who prepared it, within their approval limit." />
+        <ActionError error={act.error} forbidden="You can't do this step on this payment. Ask someone with payment approval or posting rights."
+          hints={{ self_approval: "A different person with payment approval rights must approve it.", maker_checker: "Someone other than the preparer must approve it before it is posted." }} />
         <Figures items={[
           { label: "Amount", value: <Amount value={p.amount} /> },
           { label: "Allocated to invoices", value: <Amount value={allocated} /> },

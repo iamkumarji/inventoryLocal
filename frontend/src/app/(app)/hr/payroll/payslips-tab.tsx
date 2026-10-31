@@ -86,7 +86,7 @@ export function PayslipsTab() {
               <SelectTrigger className="w-44" aria-label="Payroll run"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All runs</SelectItem>
-                {runs.data?.results.map((r) => <SelectItem key={r.id} value={r.id}>{periodLabel(r.year, r.month)}</SelectItem>)}
+                {runs.data?.results.map((r) => <SelectItem key={r.id} value={r.id}>{periodLabel(r.year, r.month)}{r.status === "reversed" ? " (reversed)" : ""}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
