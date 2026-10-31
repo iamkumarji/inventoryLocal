@@ -12,7 +12,7 @@ import { api, unwrap } from "@/lib/api/client";
 import { AGEING_BUCKETS, type AgeingRow, type OpenItem, sumDecimals, today } from "@/lib/api/finance";
 import { date } from "@/lib/format";
 
-const DOC_LABEL: Record<string, string> = {
+export const DOC_LABEL: Record<string, string> = {
   "finance.supplier_invoice": "Supplier invoice",
   "finance.payment.advance": "Advance / on account",
   "sales.invoice": "Sales invoice",

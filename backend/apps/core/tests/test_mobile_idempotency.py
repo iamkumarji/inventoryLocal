@@ -41,7 +41,9 @@ def test_admin_can_switch_a_module_on(make_user, grant, org, api_for):
     grant(viewer, ["core.feature_flag.read"], org)
     url = f"/api/v1/admin/feature-flags/{flag.pk}/"
     assert api_for(viewer).patch(url, {"enabled_default": True}, format="json").status_code == 403
-    assert not flags.is_enabled("module.inventory")
+    assert not flags.is_enabled("module.inventory", organization_id=org.pk)
     response = api_for(admin).patch(url, {"enabled_default": True}, format="json")
     assert response.status_code == 200, response.content
-    assert flags.is_enabled("module.inventory")  # cache invalidated: effective immediately
+    # Effective immediately, for the admin's own organization only (the platform default is unchanged).
+    assert flags.is_enabled("module.inventory", organization_id=org.pk)
+    assert not flags.is_enabled("module.inventory")

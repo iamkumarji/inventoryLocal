@@ -40,6 +40,7 @@ import {
   Users,
   Wallet,
   Waypoints,
+  Webhook,
   Wrench,
 } from "lucide-react";
 
@@ -53,6 +54,11 @@ export type NavItem = {
   flag?: string;
   /** Extra words for the command palette. */
   keywords?: string;
+  /**
+   * Who the item is for. Tenant users work inside an organization; platform operators run the hosting
+   * platform, belong to no organization and hold no permissions. Defaults to "tenant".
+   */
+  audience?: "tenant" | "operator" | "all";
 };
 
 export type NavSection = { label: string; items: NavItem[] };
@@ -65,9 +71,16 @@ export const NAVIGATION: NavSection[] = [
   {
     label: "Workspace",
     items: [
-      { label: "Home", href: "/", icon: Home },
+      { label: "Home", href: "/", icon: Home, audience: "all" },
       { label: "Approvals", href: "/approvals", icon: ClipboardCheck, keywords: "inbox requests decide" },
-      { label: "Notifications", href: "/notifications", icon: Bell },
+      { label: "Notifications", href: "/notifications", icon: Bell, audience: "all" },
+    ],
+  },
+  {
+    label: "Platform",
+    items: [
+      { label: "Organizations", href: "/platform", icon: Building2, audience: "operator",
+        keywords: "tenants provision suspend reactivate platform console" },
     ],
   },
   {
@@ -245,14 +258,26 @@ export const NAVIGATION: NavSection[] = [
         keywords: "history trail events" },
       { label: "Event outbox", href: "/admin/outbox", icon: ListChecks, anyOf: ["core.outbox_event.read"],
         keywords: "dead letter retry" },
+      { label: "Webhooks", href: "/admin/webhooks", icon: Webhook, flag: "module.integrations",
+        anyOf: ["integrations.webhook.read"], keywords: "integrations callbacks events signing secret deliveries" },
     ],
   },
 ];
 
-export function visibleNavigation(canAny: (codes: readonly string[]) => boolean, flag: (k: string) => boolean) {
+export function visibleNavigation(
+  canAny: (codes: readonly string[]) => boolean,
+  flag: (k: string) => boolean,
+  isOperator = false,
+) {
+  const forAudience = (item: NavItem) => {
+    const audience = item.audience ?? "tenant";
+    return audience === "all" || (audience === "operator") === isOperator;
+  };
   return NAVIGATION.map((section) => ({
     ...section,
-    items: section.items.filter((item) => canAny(item.anyOf ?? []) && (!item.flag || flag(item.flag))),
+    items: section.items.filter(
+      (item) => forAudience(item) && canAny(item.anyOf ?? []) && (!item.flag || flag(item.flag)),
+    ),
   })).filter((section) => section.items.length > 0);
 }
 

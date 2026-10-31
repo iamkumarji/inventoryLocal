@@ -124,13 +124,13 @@ def create_session(
 def authenticate_token(raw_token: str) -> AuthSession | None:
     if not raw_token or len(raw_token) > 200:
         return None
-    session = AuthSession.objects.select_related("user").filter(token_hash=sha256_hex(raw_token)).first()
+    session = AuthSession.objects.select_related("user__organization").filter(token_hash=sha256_hex(raw_token)).first()
     if session is None or session.revoked_at is not None:
         return None
     now = timezone.now()
     if now >= session.idle_expires_at or now >= session.absolute_expires_at:
         return None
-    if not session.user.is_active:
+    if not session.user.is_active or not _organization_active(session.user):
         return None
     if (now - session.last_seen_at).total_seconds() >= settings.ERP["SESSION_TOUCH_SECONDS"]:
         idle, _ = _timeouts(session.client_type)
@@ -191,6 +191,11 @@ def _record_login_failure(email: str, client: ClientInfo, reason: str, user: Use
     )
 
 
+def _organization_active(user) -> bool:
+    """Users of a suspended organization can't sign in or use existing sessions."""
+    return user.organization_id is None or user.organization.is_active
+
+
 def login(email: str, password: str, client: ClientInfo) -> LoginResult:
     email = (email or "").strip().lower()
     user = User.objects.filter(email__iexact=email).first()
@@ -202,7 +207,7 @@ def login(email: str, password: str, client: ClientInfo) -> LoginResult:
     if user.locked_until and user.locked_until > now:
         _record_login_failure(email, client, "locked", user)
         raise AccountLocked()
-    if not user.is_active or not user.check_password(password):
+    if not user.is_active or not user.check_password(password) or not _organization_active(user):
         _register_failed_attempt(user)
         _record_login_failure(email, client, "inactive" if not user.is_active else "bad_password", user)
         raise AuthenticationFailedError()

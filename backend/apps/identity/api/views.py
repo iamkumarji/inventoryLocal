@@ -174,6 +174,7 @@ class MeView(APIView):
                     "full_name": user.full_name,
                     "phone": user.phone,
                     "organization_id": str(user.organization_id) if user.organization_id else None,
+                    "is_platform_operator": user.is_platform_operator,
                     "employee_id": str(user.employee_id) if user.employee_id else None,
                 },
                 "active_company_id": str(ctx.company_id) if ctx.company_id else None,
@@ -184,7 +185,12 @@ class MeView(APIView):
                 "permissions": permissions,
                 "feature_flags": {}
                 if restricted
-                else flags.effective_flags(user_id=user.pk, role_codes=snapshot.role_codes, company_id=ctx.company_id),
+                else flags.effective_flags(
+                    user_id=user.pk,
+                    role_codes=snapshot.role_codes,
+                    company_id=ctx.company_id,
+                    organization_id=user.organization_id,
+                ),
                 "mfa": {
                     "enrolled": device is not None,
                     "required": services._session_policy(user)["mfa_required"],

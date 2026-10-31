@@ -168,7 +168,11 @@ def _pre_checks(ctx: ActorContext, action: str) -> tuple[Decision | None, Policy
     snapshot = get_snapshot(user.pk)
     module = action.split(".", 1)[0]
     if module not in settings.ERP["ALWAYS_ON_MODULES"] and not flags.is_enabled(
-        flags.module_flag_key(module), user_id=user.pk, role_codes=snapshot.role_codes, company_id=ctx.company_id
+        flags.module_flag_key(module),
+        user_id=user.pk,
+        role_codes=snapshot.role_codes,
+        company_id=ctx.company_id,
+        organization_id=user.organization_id,
     ):
         return _deny("feature_disabled"), store, snapshot
     if snapshot.mfa_required and ctx.mfa_verified_at is None:
@@ -401,6 +405,7 @@ def effective_permissions(ctx: ActorContext) -> dict:
             user_id=ctx.user.pk,
             role_codes=snapshot.role_codes,
             company_id=ctx.company_id,
+            organization_id=ctx.user.organization_id,
         ):
             continue
         codes.append(code)

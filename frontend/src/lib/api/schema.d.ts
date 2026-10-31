@@ -2028,6 +2028,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/expenses/my/advances/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Advances requested by or for the caller (self-service), so they can be linked to a claim. */
+        get: operations["expenses_my_advances_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/expenses/my/claims/": {
         parameters: {
             query?: never;
@@ -3273,6 +3290,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hr/payroll-runs/{id}/reverse/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["hr_payroll_runs_reverse_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hr/payroll-runs/{id}/submit/": {
         parameters: {
             query?: never;
@@ -3583,6 +3616,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/webhooks/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["integrations_webhooks_list"];
+        put?: never;
+        post: operations["integrations_webhooks_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/webhooks/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["integrations_webhooks_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["integrations_webhooks_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/integrations/webhooks/{id}/deliveries/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["integrations_webhooks_deliveries_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/webhooks/{id}/deliveries/{delivery_id}/redeliver/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["integrations_webhooks_deliveries_redeliver_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/webhooks/{id}/rotate-secret/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["integrations_webhooks_rotate_secret_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/webhooks/{id}/test/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["integrations_webhooks_test_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/adjustments/": {
         parameters: {
             query?: never;
@@ -3625,6 +3754,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["inventory_adjustments_approve_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustments/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inventory_adjustments_cancel_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4374,6 +4519,22 @@ export interface paths {
         get: operations["manufacturing_orders_availability_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manufacturing/orders/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["manufacturing_orders_cancel_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5413,6 +5574,50 @@ export interface paths {
         patch: operations["partners_supplier_terms_partial_update"];
         trace?: never;
     };
+    "/api/v1/platform/organizations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Operator-only: checked in the service layer (is_platform_operator + recent MFA), not by grants,
+         *     because operators deliberately hold no grants inside any organization.
+         */
+        get: operations["platform_organizations_list"];
+        put?: never;
+        /**
+         * @description Operator-only: checked in the service layer (is_platform_operator + recent MFA), not by grants,
+         *     because operators deliberately hold no grants inside any organization.
+         */
+        post: operations["platform_organizations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/organizations/{organization_id}/status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Operator-only: checked in the service layer (is_platform_operator + recent MFA), not by grants,
+         *     because operators deliberately hold no grants inside any organization.
+         */
+        post: operations["platform_organizations_status_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/procurement/mrp/": {
         parameters: {
             query?: never;
@@ -5615,6 +5820,22 @@ export interface paths {
         get: operations["procurement_requisitions_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/procurement/requisitions/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["procurement_requisitions_cancel_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8821,6 +9042,19 @@ export interface components {
             /** Format: decimal */
             run_minutes_per_unit?: string;
         };
+        OrganizationSummary: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly code: string;
+            readonly name: string;
+            readonly is_active: boolean;
+            readonly base_currency: string;
+            readonly timezone: string;
+            readonly users: number;
+            readonly companies: number;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
         OutboxEvent: {
             /** Format: uuid */
             readonly id: string;
@@ -10058,6 +10292,36 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["Warehouse"][];
         };
+        PaginatedWebhookDeliveryList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["WebhookDelivery"][];
+        };
+        PaginatedWebhookEndpointList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["WebhookEndpoint"][];
+        };
         PaginatedWorkCenterList: {
             /** @example 123 */
             count: number;
@@ -10626,6 +10890,14 @@ export interface components {
             allow_negative_stock?: boolean;
             is_active?: boolean;
         };
+        PatchedWebhookUpdateRequest: {
+            name?: string;
+            /** Format: uri */
+            url?: string;
+            event_types?: string[];
+            is_active?: boolean;
+            version?: number;
+        };
         PatchedWorkCenterRequest: {
             /** Format: uuid */
             company?: string;
@@ -11080,6 +11352,23 @@ export interface components {
          * @enum {string}
          */
         ProductionOrderStatusEnum: "draft" | "released" | "in_progress" | "completed" | "closed" | "cancelled";
+        ProvisionRequest: {
+            /** @description Short code, capitals and digits. */
+            code: string;
+            name: string;
+            company_code: string;
+            company_name: string;
+            /** @default  */
+            state_code: string;
+            /** @default  */
+            gstin: string;
+            fiscal_start_year?: number;
+            /** Format: email */
+            admin_email: string;
+            admin_name: string;
+            /** @description Temporary; the admin must change it at first sign-in. */
+            admin_password: string;
+        };
         PurchaseGRNLine: {
             /** Format: uuid */
             readonly id: string;
@@ -11498,6 +11787,10 @@ export interface components {
             /** Format: decimal */
             score: string;
         };
+        ReasonBodyRequest: {
+            reason: string;
+            version?: number;
+        };
         /**
          * @description * `damage` - Damage
          *     * `expiry` - Expiry
@@ -11508,6 +11801,10 @@ export interface components {
          * @enum {string}
          */
         ReasonEnum: "damage" | "expiry" | "found" | "loss" | "opening_balance" | "correction";
+        ReasonVersionBodyRequest: {
+            reason: string;
+            version?: number;
+        };
         Reconciliation: {
             /** Format: decimal */
             book_balance: string;
@@ -12368,6 +12665,10 @@ export interface components {
          * @enum {string}
          */
         StatementLineStatusEnum: "unmatched" | "matched" | "ignored";
+        StatusRequest: {
+            active: boolean;
+            reason: string;
+        };
         Step: {
             /** Format: uuid */
             readonly id: string;
@@ -12943,6 +13244,62 @@ export interface components {
          * @enum {string}
          */
         WarehouseTypeEnum: "raw_material" | "wip" | "finished_goods" | "quarantine" | "scrap" | "transit" | "general";
+        WebhookCreateRequest: {
+            name: string;
+            /** Format: uri */
+            url: string;
+            event_types: string[];
+            /** Format: uuid */
+            company?: string | null;
+        };
+        WebhookDelivery: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly endpoint: string;
+            /** Format: uuid */
+            readonly event_id: string;
+            readonly event_type: string;
+            readonly status: components["schemas"]["WebhookDeliveryStatusEnum"];
+            readonly attempts: number;
+            /** Format: date-time */
+            readonly next_attempt_at: string;
+            readonly last_status_code: number | null;
+            readonly last_error: string;
+            /** Format: date-time */
+            readonly delivered_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly body: unknown;
+        };
+        /**
+         * @description * `pending` - Pending
+         *     * `succeeded` - Succeeded
+         *     * `failed` - Failed
+         *     * `dead` - Dead
+         * @enum {string}
+         */
+        WebhookDeliveryStatusEnum: "pending" | "succeeded" | "failed" | "dead";
+        WebhookEndpoint: {
+            /** Format: uuid */
+            readonly id: string;
+            readonly version: number;
+            name: string;
+            /** Format: uri */
+            url: string;
+            /** Format: uuid */
+            company?: string | null;
+            event_types?: unknown;
+            is_active?: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        WebhookSecret: {
+            endpoint: components["schemas"]["WebhookEndpoint"];
+            secret: string;
+        };
         WorkCenter: {
             /** Format: uuid */
             readonly id: string;
@@ -17088,6 +17445,25 @@ export interface operations {
             };
         };
     };
+    expenses_my_advances_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Advance"][];
+                };
+            };
+        };
+    };
     expenses_my_claims_list: {
         parameters: {
             query?: never;
@@ -18038,10 +18414,6 @@ export interface operations {
                 kind?: "payable" | "receivable";
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
-                /** @description A page number within the paginated result set. */
-                page?: number;
-                /** @description Number of results to return per page. */
-                page_size?: number;
                 partner?: string;
                 /** @description A search term. */
                 search?: string;
@@ -18061,7 +18433,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedOpenItemList"];
+                    "application/json": components["schemas"]["OpenItem"][];
                 };
             };
         };
@@ -19411,6 +19783,32 @@ export interface operations {
             };
         };
     };
+    hr_payroll_runs_reverse_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this payroll run. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonVersionBodyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollRun"];
+                };
+            };
+        };
+    };
     hr_payroll_runs_submit_create: {
         parameters: {
             query?: never;
@@ -20039,6 +20437,207 @@ export interface operations {
             };
         };
     };
+    integrations_webhooks_list: {
+        parameters: {
+            query?: {
+                company?: string;
+                is_active?: boolean;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A page number within the paginated result set. */
+                page?: number;
+                /** @description Number of results to return per page. */
+                page_size?: number;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedWebhookEndpointList"];
+                };
+            };
+        };
+    };
+    integrations_webhooks_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookSecret"];
+                };
+            };
+        };
+    };
+    integrations_webhooks_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookEndpoint"];
+                };
+            };
+        };
+    };
+    integrations_webhooks_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedWebhookUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookEndpoint"];
+                };
+            };
+        };
+    };
+    integrations_webhooks_deliveries_list: {
+        parameters: {
+            query?: {
+                company?: string;
+                is_active?: boolean;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A page number within the paginated result set. */
+                page?: number;
+                /** @description Number of results to return per page. */
+                page_size?: number;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedWebhookDeliveryList"];
+                };
+            };
+        };
+    };
+    integrations_webhooks_deliveries_redeliver_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                delivery_id: string;
+                /** @description A UUID string identifying this webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookDelivery"];
+                };
+            };
+        };
+    };
+    integrations_webhooks_rotate_secret_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookSecret"];
+                };
+            };
+        };
+    };
+    integrations_webhooks_test_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookDelivery"];
+                };
+            };
+        };
+    };
     inventory_adjustments_list: {
         parameters: {
             query?: {
@@ -20144,6 +20743,32 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": components["schemas"]["DocVersionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Adjustment"];
+                };
+            };
+        };
+    };
+    inventory_adjustments_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this stock adjustment. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBodyRequest"];
             };
         };
         responses: {
@@ -21554,6 +22179,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MaterialAvailability"][];
+                };
+            };
+        };
+    };
+    manufacturing_orders_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this production order. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBodyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductionOrder"];
                 };
             };
         };
@@ -23591,6 +24242,73 @@ export interface operations {
             };
         };
     };
+    platform_organizations_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSummary"][];
+                };
+            };
+        };
+    };
+    platform_organizations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProvisionRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSummary"];
+                };
+            };
+        };
+    };
+    platform_organizations_status_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSummary"];
+                };
+            };
+        };
+    };
     procurement_mrp_list: {
         parameters: {
             query?: {
@@ -23986,6 +24704,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseRequisition"];
+                };
+            };
+        };
+    };
+    procurement_requisitions_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this purchase requisition. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBodyRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {

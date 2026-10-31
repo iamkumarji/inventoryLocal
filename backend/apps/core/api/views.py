@@ -12,7 +12,7 @@ from apps.authorization.context import actor_for
 from apps.authorization.drf import ERPGenericViewSet, ERPReadOnlyViewSet
 from apps.authorization.snapshot import get_snapshot
 from apps.core import flags
-from apps.core.models import FeatureFlag, OutboxEvent
+from apps.core.models import FeatureFlag, OrganizationFeatureFlag, OutboxEvent
 
 
 def health_live(request):
@@ -46,7 +46,10 @@ class EffectiveFlagsView(APIView):
         return Response(
             {
                 "flags": flags.effective_flags(
-                    user_id=request.user.pk, role_codes=snapshot.role_codes, company_id=ctx.company_id
+                    user_id=request.user.pk,
+                    role_codes=snapshot.role_codes,
+                    company_id=ctx.company_id,
+                    organization_id=request.user.organization_id,
                 )
             }
         )
@@ -75,18 +78,76 @@ class FeatureFlagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixin
     pagination_class = None
     http_method_names = ["get", "patch", "head", "options"]
 
-    def perform_update(self, serializer):
-        before = {"enabled_default": serializer.instance.enabled_default, "rules": serializer.instance.rules}
-        instance = serializer.save(updated_by=self.request.user)
+    # Tenants see and change their own organization's setting (enabled_default/rules in the response are
+    # the organization's effective values); the platform default only applies until they choose. Users
+    # without an organization (platform operators) edit the platform default.
+
+    def _org_values(self, flag: FeatureFlag) -> dict:
+        org_id = self.request.user.organization_id
+        own = OrganizationFeatureFlag.objects.filter(organization_id=org_id, key=flag.key).first() if org_id else None
+        data = FeatureFlagSerializer(flag).data
+        if org_id:
+            data["enabled_default"] = own.enabled if own else flag.enabled_default
+            data["rules"] = own.rules if own else {}
+        return data
+
+    def list(self, request, *args, **kwargs):
+        return Response([self._org_values(flag) for flag in self.filter_queryset(self.get_queryset())])
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response(self._org_values(self.get_object()))
+
+    def partial_update(self, request, *args, **kwargs):
+        flag = self.get_object()
+        data = FeatureFlagSerializer(flag, data=request.data, partial=True)
+        data.is_valid(raise_exception=True)
+        org_id = request.user.organization_id
+        values = data.validated_data
+        if "rules" in values:
+            _check_rule_targets(values["rules"], org_id)
+        before = self._org_values(flag)
+        if org_id:
+            own, _ = OrganizationFeatureFlag.objects.get_or_create(
+                organization_id=org_id, key=flag.key, defaults={"enabled": flag.enabled_default}
+            )
+            own.enabled = values.get("enabled_default", own.enabled)
+            own.rules = values.get("rules", own.rules)
+            own.updated_by = request.user
+            own.save()
+        else:
+            data.save(updated_by=request.user)
         flags.invalidate()  # take effect now, not after the cache expires
+        after = self._org_values(flag)
         audit.record(
             "core.feature_flag.updated",
             ctx=self.actor,
             resource_type="core.feature_flag",
-            resource_id=instance.pk,
-            summary=instance.key,
-            changes=audit.diff(before, {"enabled_default": instance.enabled_default, "rules": instance.rules}),
+            resource_id=flag.pk,
+            organization_id=org_id,
+            summary=flag.key if org_id else f"{flag.key} (platform default)",
+            changes=audit.diff(
+                {"enabled": before["enabled_default"], "rules": before["rules"]},
+                {"enabled": after["enabled_default"], "rules": after["rules"]},
+            ),
         )
+        return Response(after)
+
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
+
+def _check_rule_targets(rules: dict, org_id) -> None:
+    """Targeting may only name this organization's users and companies."""
+    if org_id is None:
+        return
+    from django.apps import apps
+
+    user_ids = set(rules.get("users", {}))
+    company_ids = set(rules.get("companies", {}))
+    users = apps.get_model("identity", "User").objects.filter(pk__in=user_ids, organization_id=org_id).count()
+    companies = apps.get_model("organization", "Company").objects.filter(pk__in=company_ids, organization_id=org_id)
+    if users != len(user_ids) or companies.count() != len(company_ids):
+        raise serializers.ValidationError({"rules": ["Target only users and companies of your organization."]})
 
 
 class OutboxEventSerializer(serializers.ModelSerializer):
@@ -117,6 +178,17 @@ class OutboxEventViewSet(ERPReadOnlyViewSet):
     queryset = OutboxEvent.objects.order_by("-occurred_at")
     serializer_class = OutboxEventSerializer
     filterset_fields = ["status", "event_type", "aggregate_type", "aggregate_id"]
+
+    def get_queryset(self):
+        # Events carry a company, not an organization: show only this organization's companies.
+        # Events with no company (platform housekeeping) are for platform operators only.
+        from django.apps import apps
+
+        org_id = self.request.user.organization_id
+        if org_id is None:
+            return super().get_queryset().filter(company_id__isnull=True)
+        companies = apps.get_model("organization", "Company").objects.filter(organization_id=org_id)
+        return super().get_queryset().filter(company_id__in=companies.values("pk"))
 
     @extend_schema(request=None, responses=OutboxEventSerializer)
     @action(detail=True, methods=["post"])

@@ -8,7 +8,8 @@ import { DataTable, PageNav, type Column } from "@/components/erp/data-table";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { EmptyState } from "@/components/erp/states";
 import { Amount } from "@/components/finance/amount";
-import { DocStatus, Unavailable } from "@/components/finance/controls";
+import { ApplyCreditDialog } from "@/components/finance/apply-credit";
+import { DocStatus } from "@/components/finance/controls";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, unwrap } from "@/lib/api/client";
@@ -66,9 +67,15 @@ export function PaymentsView() {
             empty={<EmptyState icon={Wallet} title="No payments match" description="Payments settle open supplier invoices; receipts settle customer invoices. Anything unallocated stays on account." />} />
           {q.data && <PageNav page={url.page} count={q.data.count} pageSize={50} onPage={(page) => url.set({ page })} />}
         </Section>
-        <Unavailable title="Applying credits to invoices">
-          Offsetting a credit note or an on-account payment against an open invoice can&apos;t be done from this screen yet. Such credits stay visible as negative open items under Payables and Receivables.
-        </Unavailable>
+        {can("finance.payment.create") && can("finance.open_item.read") && (
+          <Section title="Applying credits to invoices"
+            description="Offset a credit note or an on-account payment against an open invoice of the same partner. No money moves; both open items are settled by the amount.">
+            <div className="flex flex-wrap gap-2 px-5 py-4">
+              <ApplyCreditDialog kind="receivable" label="Apply customer credit" />
+              <ApplyCreditDialog kind="payable" label="Apply supplier credit" />
+            </div>
+          </Section>
+        )}
       </div>
     </>
   );

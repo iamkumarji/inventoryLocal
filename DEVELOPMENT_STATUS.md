@@ -8,9 +8,9 @@ How to read "verified": *backend tests* = pytest on real PostgreSQL through serv
 ## Verification snapshot (2026-10-31)
 | Gate | Result |
 |---|---|
-| Backend test suite (PostgreSQL 14) | ✅ 1,343 passed in the last full run (incl. parametrized endpoint-permission matrix over every URL). Tests added afterwards (S3 public-link signing, ops commands) pass individually |
+| Backend test suite (PostgreSQL 14) | ✅ 1,401 passed in the last full run (incl. the endpoint-permission matrix over every URL and the multi-tenant isolation crawl) |
 | Lint, layering, migrations, OpenAPI | ✅ `ruff check` clean · `lint-imports` 2 kept / 0 broken · `makemigrations --check` no drift · `spectacular --validate --fail-on-warn` 0 warnings |
-| Web app | ✅ `tsc` clean, ESLint clean, `next build` succeeds (113 pages). Browser coverage per module below |
+| Web app | ✅ `tsc` clean, ESLint clean, `next build` succeeds (119 pages). Browser coverage per module below |
 | Mobile app | ✅ `tsc`, `expo lint` clean; 17 unit tests (offline queue, operations). 🟡 Browser-build e2e: storekeeper flow passes; expense, driver and approver flows not yet passing |
 | Docker images / CI runner | 🟡 Compose files parse; **images not built** (no Docker daemon here); CI workflow written, **not run on a runner** |
 | Backup/restore | 🟡 `backup.sh` ran and produced a verified dump; the restore half of the drill ran but its result is void (the dump was taken while a test reset was rebuilding that database). Needs a clean re-run |
@@ -20,21 +20,22 @@ How to read "verified": *backend tests* = pytest on real PostgreSQL through serv
 |---|---|---|---|---|
 | 1 | Organization, identity, RBAC/ABAC, audit, approvals, notifications | ✅ | ✅ browser-tested (Phase 1b suite) | WebAuthn ⏳ |
 | 2 | Master data (items, UoM, categories, HSN) | ✅ | ✅ browser-tested | |
-| 3 | Inventory & warehouse (moving average, reservations, batches/serials, adjustments, transfers, blind counts, ageing, scan) | ✅ incl. concurrency test | ✅ browser-tested except edit dialogs, batch/serial lines, bin pickers | Stock list can't filter by stock status; counts have no separate submit step; adjustments have no reject/cancel endpoint; serial items excluded from counts |
+| 3 | Inventory & warehouse (moving average, reservations, batches/serials, adjustments, transfers, blind counts, ageing, scan) | ✅ incl. concurrency test | ✅ browser-tested except edit dialogs, batch/serial lines, bin pickers | Stock list can't filter by stock status; counts have no separate submit step; serial items excluded from counts |
 | 4 | Suppliers & customers (maker-checker vendor approval, encrypted bank accounts) | ✅ | 🟡 maker side browser-tested; checker side built only | |
-| 5 | Procurement (MRP, PR, RFQ, quotations, PO, GRN, QC hold, returns) | ✅ P2P tests | 🟡 built only | Requisition cancel endpoint missing; RFQ quotations not listable separately |
+| 5 | Procurement (MRP, PR, RFQ, quotations, PO, GRN, QC hold, returns) | ✅ P2P tests | 🟡 built only | RFQ quotations not listable separately |
 | 6 | Quality (plans, inspections, NCR, supplier rating) | ✅ | ✅ browser-tested | |
-| 7 | Manufacturing (BOM versions, routing, production orders, actual costing, scrap, close) | ✅ | 🟡 BOM screens browser-tested; production orders built only | Production order cancel endpoint missing |
+| 7 | Manufacturing (BOM versions, routing, production orders, actual costing, scrap, close, cancel) | ✅ | 🟡 BOM screens browser-tested; production orders built only | |
 | 8 | Sales (quotations, credit check/override, delivery + COGS, GST invoice, returns/credit notes) | ✅ O2C test | 🟡 built only | GST on credit notes uses the invoice's rates (approximation); AR overdue blocks with no grace period |
 | 9 | Logistics (vehicles, drivers, shipments, document expiry, POD) | ✅ | 🟡 built only | Freight cost is recorded but not posted to GL |
-| 10 | Finance (GL, AP 3-way match, payments, AR, bank import/reconcile, GST returns, budgets, period/year close) | ✅ | 🟡 journals, statements, payments, banking, analytics browser-tested; payables, GST, budgets, close built only | Budget CRUD/approve and apply-credit endpoints added after the screens were built — the screens don't use them yet |
-| 11 | Expenses (claims, advances, fuel logs, category policy) | ✅ | 🟡 creation and policy errors browser-tested; decide/pay built only | No `my/advances` endpoint |
-| 12 | HR & payroll (employees with masked PII, attendance, leave, salary structures, payroll runs, payslips) | ✅ | ✅ employees, leave, payroll run, payslip privacy browser-tested | Reversal of a posted payroll run not built |
+| 10 | Finance (GL, AP 3-way match, payments, AR, bank import/reconcile, GST returns, budgets, period/year close) | ✅ | 🟡 journals, statements, payments, banking, analytics browser-tested; payables, GST, budgets, close built only | Budget create/edit/approve and apply-credit screens built only (not browser-tested) |
+| 11 | Expenses (claims, advances, fuel logs, category policy) | ✅ | 🟡 creation and policy errors browser-tested; decide/pay built only | |
+| 12 | HR & payroll (employees with masked PII, attendance, leave, salary structures, payroll runs incl. reversal, payslips) | ✅ | ✅ employees, leave, payroll run, payslip privacy browser-tested | Payroll reversal has no screen yet |
 | 13 | Tasks & collaboration (tasks, comments, mentions, escalation) | ✅ | 🟡 built only | |
 | 14 | Documents (versions, ACL, legal hold, retention; local or S3/MinIO) | ✅ incl. S3 against an in-process mock | 🟡 built only | Direct-to-S3 upload not wired (uploads go through the API) |
 | 15 | Assets & maintenance (capitalisation, depreciation runs, disposal, preventive maintenance, MTBF/MTTR) | ✅ | 🟡 built only | No catch-up depreciation for assets in use before the first run; GST on asset sale not handled |
-| 16 | Analytics (role dashboards, KPIs from ledgers, async CSV exports, forecasting) | ✅ | ✅ dashboards + export browser-tested | HR and employee dashboards ⏳ |
-| 17 | Integrations (webhooks, e-invoice / e-way bill / bank file adapters) | ⏳ | ⏳ | Not started. The outbox is in place for it |
+| 16 | Analytics (role dashboards incl. HR and employee, KPIs from ledgers, async CSV exports, forecasting) | ✅ | ✅ dashboards + export browser-tested | |
+| 17 | Integrations: outbound webhooks (HMAC-signed, retries, SSRF guard, per-organization switch) | ✅ | 🟡 built only (`/admin/webhooks`) | e-invoice / e-way bill / bank-file adapters ⏳ (need GSP/bank credentials) |
+| — | Multi-tenant organizations (platform operators, provisioning, suspension, per-organization flags, cross-tenant reference guard) | ✅ incl. isolation crawl | 🟡 built only (`/platform` console) | Logical isolation (shared database and keys); see RBAC_ABAC.md §12 and D-34 |
 | — | Mobile app (lookup, GRN, counts, transfers, POD, approvals, expenses, offline outbox) | n/a | 🟡 see snapshot | Native (device) build not made; OCR receipt capture (SRS "could") not built |
 
 ## Fixed while building this round

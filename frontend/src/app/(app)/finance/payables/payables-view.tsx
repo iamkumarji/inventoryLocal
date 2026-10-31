@@ -8,6 +8,7 @@ import { DataTable, PageNav, type Column } from "@/components/erp/data-table";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { EmptyState } from "@/components/erp/states";
 import { Amount } from "@/components/finance/amount";
+import { ApplyCreditDialog } from "@/components/finance/apply-credit";
 import { AsOf, DocStatus, FilterBar, MatchStatus } from "@/components/finance/controls";
 import { AgeingTable, OpenItemsTable } from "@/components/finance/subledger";
 import { Button } from "@/components/ui/button";
@@ -59,9 +60,12 @@ export function PayablesView() {
   return (
     <>
       <PageHeader title="Payables" description="Supplier invoices are matched to the order and goods receipt before they're posted. A clean match approves itself; a price variance needs an approver."
-        actions={can("finance.supplier_invoice.create") && (
-          <Button asChild><Link href="/finance/payables/new"><Plus aria-hidden /> Record invoice</Link></Button>
-        )} />
+        actions={<>
+          {can("finance.payment.create") && can("finance.open_item.read") && <ApplyCreditDialog kind="payable" />}
+          {can("finance.supplier_invoice.create") && (
+            <Button asChild><Link href="/finance/payables/new"><Plus aria-hidden /> Record invoice</Link></Button>
+          )}
+        </>} />
       <Tabs value={view} onValueChange={(v) => url.set({ view: v, status: null })} className="mb-4">
         <TabsList>
           {can("finance.supplier_invoice.read") && <TabsTrigger value="invoices">Supplier invoices</TabsTrigger>}

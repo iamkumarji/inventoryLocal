@@ -10,5 +10,6 @@ Operational procedures for OtabuPro ERP. Each runbook says who does it, how ofte
 | [Incident response](incident-response.md) | Security or availability incidents |
 | [Month-end and year-end close](period-close.md) | Monthly / yearly (finance) |
 | [People joining, moving and leaving](access-lifecycle.md) | HR events |
+| [Platform operations (multi-tenant)](platform-operations.md) | Onboarding, suspending organizations |
 
 Status of verification is tracked in `DEVELOPMENT_STATUS.md`. Steps marked **(not yet rehearsed)** have been written but not run end to end on production-like infrastructure.

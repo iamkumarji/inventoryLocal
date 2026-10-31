@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CheckCheck, ClipboardCheck, Inbox, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowRight, Building2, CheckCheck, ClipboardCheck, Inbox, ShieldAlert, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader, Section } from "@/components/erp/page-header";
@@ -20,16 +20,100 @@ function greeting(): string {
   return "Good evening";
 }
 
+function UnreadNotifications() {
+  const unread = useQuery({
+    queryKey: ["notifications", "list", "home"],
+    queryFn: () => unwrap(api.GET("/api/v1/notifications/", { params: { query: { unread: true, page_size: 5 } } })),
+  });
+  return (
+    <Section title="Unread notifications"
+      actions={<Button variant="ghost" size="sm" asChild><Link href="/notifications">All</Link></Button>}>
+      {unread.isLoading ? <RowsSkeleton rows={3} /> : unread.error ? <ErrorState error={unread.error} /> :
+        unread.data!.results.length === 0 ? (
+          <EmptyState title="You're up to date" />
+        ) : (
+          <ul className="divide-y">
+            {unread.data!.results.map((n) => (
+              <li key={n.id} className="px-5 py-3">
+                {n.link ? <Link href={n.link} className="font-medium hover:underline">{n.title}</Link> : <p className="font-medium">{n.title}</p>}
+                <p className="text-xs text-muted-foreground">{ago(n.created_at)}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+    </Section>
+  );
+}
+
+function MfaLine() {
+  const { me } = useSession();
+  return (
+    <div className="flex items-start gap-2">
+      {me.mfa.enrolled ? (
+        <ShieldCheck className="mt-0.5 size-4 text-status-approved" aria-hidden />
+      ) : (
+        <ShieldAlert className="mt-0.5 size-4 text-status-pending" aria-hidden />
+      )}
+      <dd>
+        {me.mfa.enrolled ? "Two-step verification is on." : "Two-step verification is off."}{" "}
+        <Link href="/account/security" className="underline underline-offset-4">Manage</Link>
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * Platform operators run the hosting platform. They belong to no organization and hold no tenant
+ * permissions, so tenant work queues (approvals, requests) would only answer 403: show what they can use.
+ */
+function OperatorHome() {
+  const { me } = useSession();
+  const firstName = me.user.full_name.split(" ")[0];
+  return (
+    <>
+      <PageHeader
+        title={`${greeting()}, ${firstName}`}
+        description="You're signed in as a platform operator. You administer organizations on this installation; you don't work inside any of them."
+      />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <Section title="Platform console" description="Create organizations, and suspend or reactivate them.">
+          <div className="flex flex-col items-start gap-3 px-5 py-5">
+            <p className="max-w-[60ch] text-sm text-muted-foreground">
+              Every platform action asks for a fresh two-step verification code, because it changes who can sign in across the whole installation.
+            </p>
+            <Button asChild>
+              <Link href="/platform"><Building2 aria-hidden /> Open organizations <ArrowRight aria-hidden /></Link>
+            </Button>
+          </div>
+        </Section>
+        <div className="grid content-start gap-6">
+          <UnreadNotifications />
+          <Section title="Your account">
+            <dl className="grid gap-3 px-5 py-4 text-sm">
+              <div>
+                <dt className="text-muted-foreground">Signed in as</dt>
+                <dd className="mt-0.5 break-all">{me.user.email}</dd>
+              </div>
+              <MfaLine />
+            </dl>
+          </Section>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function HomeView() {
+  const { isOperator } = useSession();
+  return isOperator ? <OperatorHome /> : <TenantHome />;
+}
+
+function TenantHome() {
   const { me, activeCompany } = useSession();
   const inbox = useInbox();
   const mine = useQuery({
     queryKey: ["approvals", "mine", "recent"],
     queryFn: () => unwrap(api.GET("/api/v1/approvals/requests/", { params: { query: { mine: true, page_size: 5 } } })),
-  });
-  const unread = useQuery({
-    queryKey: ["notifications", "list", "home"],
-    queryFn: () => unwrap(api.GET("/api/v1/notifications/", { params: { query: { unread: true, page_size: 5 } } })),
   });
   const firstName = me.user.full_name.split(" ")[0];
 
@@ -98,22 +182,7 @@ export function HomeView() {
         </div>
 
         <div className="grid content-start gap-6">
-          <Section title="Unread notifications"
-            actions={<Button variant="ghost" size="sm" asChild><Link href="/notifications">All</Link></Button>}>
-            {unread.isLoading ? <RowsSkeleton rows={3} /> : unread.error ? <ErrorState error={unread.error} /> :
-              unread.data!.results.length === 0 ? (
-                <EmptyState title="You're up to date" />
-              ) : (
-                <ul className="divide-y">
-                  {unread.data!.results.map((n) => (
-                    <li key={n.id} className="px-5 py-3">
-                      {n.link ? <Link href={n.link} className="font-medium hover:underline">{n.title}</Link> : <p className="font-medium">{n.title}</p>}
-                      <p className="text-xs text-muted-foreground">{ago(n.created_at)}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-          </Section>
+          <UnreadNotifications />
 
           <Section title="Your access">
             <dl className="grid gap-3 px-5 py-4 text-sm">
@@ -125,17 +194,7 @@ export function HomeView() {
                 <dt className="text-muted-foreground">Companies</dt>
                 <dd className="mt-0.5">{me.companies.map((c) => c.name).join(", ") || "None"}</dd>
               </div>
-              <div className="flex items-start gap-2">
-                {me.mfa.enrolled ? (
-                  <ShieldCheck className="mt-0.5 size-4 text-status-approved" aria-hidden />
-                ) : (
-                  <ShieldAlert className="mt-0.5 size-4 text-status-pending" aria-hidden />
-                )}
-                <dd>
-                  {me.mfa.enrolled ? "Two-step verification is on." : "Two-step verification is off."}{" "}
-                  <Link href="/account/security" className="underline underline-offset-4">Manage</Link>
-                </dd>
-              </div>
+              <MfaLine />
             </dl>
           </Section>
 

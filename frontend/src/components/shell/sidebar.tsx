@@ -26,8 +26,8 @@ export function Wordmark({ compact = false }: { compact?: boolean }) {
 
 export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { canAny, flag } = useSession();
-  const sections = visibleNavigation(canAny, flag);
+  const { canAny, flag, isOperator } = useSession();
+  const sections = visibleNavigation(canAny, flag, isOperator);
   const current = activeHref(pathname);
 
   return (

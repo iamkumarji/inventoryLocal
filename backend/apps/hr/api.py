@@ -44,7 +44,11 @@ def require_module(ctx, module: str) -> None:
     """Self-service views skip the PDP, so they check the module feature flag themselves."""
     snapshot = get_snapshot(ctx.user.pk)
     if not flags.is_enabled(
-        flags.module_flag_key(module), user_id=ctx.user.pk, role_codes=snapshot.role_codes, company_id=ctx.company_id
+        flags.module_flag_key(module),
+        user_id=ctx.user.pk,
+        role_codes=snapshot.role_codes,
+        company_id=ctx.company_id,
+        organization_id=ctx.user.organization_id,
     ):
         raise FeatureDisabled()
 
@@ -648,7 +652,6 @@ class PayrollRunViewSet(DocumentViewSet):
             )
         )
 
-    @extend_schema(request=PostRunSerializer, responses=PayrollRunSerializer, parameters=[IDEM])
     @extend_schema(request=ReasonVersionBody, responses=PayrollRunSerializer)
     @action(detail=True, methods=["post"])
     @idempotent()
@@ -660,6 +663,7 @@ class PayrollRunViewSet(DocumentViewSet):
             )
         )
 
+    @extend_schema(request=PostRunSerializer, responses=PayrollRunSerializer, parameters=[IDEM])
     @action(detail=True, methods=["post"], url_path="post")
     @idempotent(required=True)
     def post_run(self, request, pk=None):

@@ -11,7 +11,15 @@ import { getActiveCompany, setActiveCompany } from "@/lib/company";
 export type Grant = { scope_type: string; scope_id: string; role: string };
 
 export type Me = {
-  user: { id: string; email: string; full_name: string; phone: string; organization_id: string | null };
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    phone: string;
+    organization_id: string | null;
+    /** Runs the hosting platform: belongs to no organization and holds no tenant permissions. */
+    is_platform_operator: boolean;
+  };
   active_company_id: string | null;
   companies: { id: string; code: string; name: string }[];
   roles: string[];
@@ -38,6 +46,8 @@ type SessionValue = {
   can: (code: string) => boolean;
   canAny: (codes: readonly string[]) => boolean;
   flag: (key: string) => boolean;
+  /** A platform operator (multi-tenant administration), never a tenant user. */
+  isOperator: boolean;
   switchCompany: (id: string) => void;
   activeCompany: Me["companies"][number] | undefined;
 };
@@ -102,6 +112,7 @@ export function SessionGate({ children, fallback }: { children: ReactNode; fallb
       can: (code) => codes.has(code),
       canAny: (list) => list.length === 0 || list.some((c) => codes.has(c)),
       flag: (key) => me.feature_flags[key] === true,
+      isOperator: me.user.is_platform_operator === true && me.user.organization_id === null,
       switchCompany,
       activeCompany: me.companies.find((c) => c.id === activeId) ?? me.companies[0],
     };

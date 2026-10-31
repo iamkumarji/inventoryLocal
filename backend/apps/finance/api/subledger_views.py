@@ -242,7 +242,7 @@ class OpenItemViewSet(ERPReadOnlyViewSet):
         return Response(subledger.ageing(self.actor.company_id, request.query_params.get("kind", "receivable"), as_of))
 
     @extend_schema(request=ApplyCreditSerializer, responses=OpenItemSerializer(many=True))
-    @action(detail=False, methods=["post"], url_path="apply-credit")
+    @action(detail=False, methods=["post"], url_path="apply-credit", pagination_class=None)
     @idempotent()
     def apply_credit(self, request):
         data = ApplyCreditSerializer(data=request.data, context=self.get_serializer_context())

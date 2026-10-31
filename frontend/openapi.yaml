@@ -4962,6 +4962,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/FuelLog'
           description: ''
+  /api/v1/expenses/my/advances/:
+    get:
+      operationId: expenses_my_advances_list
+      description: Advances requested by or for the caller (self-service), so they
+        can be linked to a claim.
+      tags:
+      - expenses
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Advance'
+          description: ''
   /api/v1/expenses/my/claims/:
     get:
       operationId: expenses_my_claims_list
@@ -6195,18 +6214,6 @@ paths:
         description: Which field to use when ordering the results.
         schema:
           type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
       - in: query
         name: partner
         schema:
@@ -6234,7 +6241,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedOpenItemList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpenItem'
           description: ''
   /api/v1/finance/payments/:
     get:
@@ -7867,6 +7876,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayrollRun'
           description: ''
+  /api/v1/hr/payroll-runs/{id}/reverse/:
+    post:
+      operationId: hr_payroll_runs_reverse_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this payroll run.
+        required: true
+      tags:
+      - hr
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonVersionBodyRequest'
+        required: true
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollRun'
+          description: ''
   /api/v1/hr/payroll-runs/{id}/submit/:
     post:
       operationId: hr_payroll_runs_submit_create
@@ -8651,6 +8689,256 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
           description: ''
+  /api/v1/integrations/webhooks/:
+    get:
+      operationId: integrations_webhooks_list
+      parameters:
+      - in: query
+        name: company
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - integrations
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWebhookEndpointList'
+          description: ''
+    post:
+      operationId: integrations_webhooks_create
+      tags:
+      - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookCreateRequest'
+        required: true
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSecret'
+          description: ''
+  /api/v1/integrations/webhooks/{id}/:
+    get:
+      operationId: integrations_webhooks_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this webhook endpoint.
+        required: true
+      tags:
+      - integrations
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+          description: ''
+    patch:
+      operationId: integrations_webhooks_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this webhook endpoint.
+        required: true
+      tags:
+      - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedWebhookUpdateRequest'
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+          description: ''
+  /api/v1/integrations/webhooks/{id}/deliveries/:
+    get:
+      operationId: integrations_webhooks_deliveries_list
+      parameters:
+      - in: query
+        name: company
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this webhook endpoint.
+        required: true
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - integrations
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWebhookDeliveryList'
+          description: ''
+  /api/v1/integrations/webhooks/{id}/deliveries/{delivery_id}/redeliver/:
+    post:
+      operationId: integrations_webhooks_deliveries_redeliver_create
+      parameters:
+      - in: path
+        name: delivery_id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this webhook endpoint.
+        required: true
+      tags:
+      - integrations
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDelivery'
+          description: ''
+  /api/v1/integrations/webhooks/{id}/rotate-secret/:
+    post:
+      operationId: integrations_webhooks_rotate_secret_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this webhook endpoint.
+        required: true
+      tags:
+      - integrations
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSecret'
+          description: ''
+  /api/v1/integrations/webhooks/{id}/test/:
+    post:
+      operationId: integrations_webhooks_test_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this webhook endpoint.
+        required: true
+      tags:
+      - integrations
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDelivery'
+          description: ''
   /api/v1/inventory/adjustments/:
     get:
       operationId: inventory_adjustments_list
@@ -8793,6 +9081,35 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DocVersionRequest'
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Adjustment'
+          description: ''
+  /api/v1/inventory/adjustments/{id}/cancel/:
+    post:
+      operationId: inventory_adjustments_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this stock adjustment.
+        required: true
+      tags:
+      - inventory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonBodyRequest'
+        required: true
       security:
       - cookieSession: []
         bearerSession: []
@@ -10703,6 +11020,35 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/MaterialAvailability'
+          description: ''
+  /api/v1/manufacturing/orders/{id}/cancel/:
+    post:
+      operationId: manufacturing_orders_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this production order.
+        required: true
+      tags:
+      - manufacturing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonBodyRequest'
+        required: true
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductionOrder'
           description: ''
   /api/v1/manufacturing/orders/{id}/close/:
     post:
@@ -13340,6 +13686,80 @@ paths:
               schema:
                 $ref: '#/components/schemas/Partner'
           description: ''
+  /api/v1/platform/organizations/:
+    get:
+      operationId: platform_organizations_list
+      description: |-
+        Operator-only: checked in the service layer (is_platform_operator + recent MFA), not by grants,
+        because operators deliberately hold no grants inside any organization.
+      tags:
+      - platform
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationSummary'
+          description: ''
+    post:
+      operationId: platform_organizations_create
+      description: |-
+        Operator-only: checked in the service layer (is_platform_operator + recent MFA), not by grants,
+        because operators deliberately hold no grants inside any organization.
+      tags:
+      - platform
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionRequest'
+        required: true
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSummary'
+          description: ''
+  /api/v1/platform/organizations/{organization_id}/status/:
+    post:
+      operationId: platform_organizations_status_create
+      description: |-
+        Operator-only: checked in the service layer (is_platform_operator + recent MFA), not by grants,
+        because operators deliberately hold no grants inside any organization.
+      parameters:
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - platform
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusRequest'
+        required: true
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSummary'
+          description: ''
   /api/v1/procurement/mrp/:
     get:
       operationId: procurement_mrp_list
@@ -13824,6 +14244,35 @@ paths:
         required: true
       tags:
       - procurement
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseRequisition'
+          description: ''
+  /api/v1/procurement/requisitions/{id}/cancel/:
+    post:
+      operationId: procurement_requisitions_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this purchase requisition.
+        required: true
+      tags:
+      - procurement
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonBodyRequest'
+        required: true
       security:
       - cookieSession: []
         bearerSession: []
@@ -21872,6 +22321,48 @@ components:
       - name
       - sequence
       - work_center_code
+    OrganizationSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        code:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        base_currency:
+          type: string
+          readOnly: true
+        timezone:
+          type: string
+          readOnly: true
+        users:
+          type: integer
+          readOnly: true
+        companies:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - base_currency
+      - code
+      - companies
+      - created_at
+      - id
+      - is_active
+      - name
+      - timezone
+      - users
     OutboxEvent:
       type: object
       properties:
@@ -23802,6 +24293,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Warehouse'
+    PaginatedWebhookDeliveryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookDelivery'
+    PaginatedWebhookEndpointList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEndpoint'
     PaginatedWorkCenterList:
       type: object
       required:
@@ -25104,6 +25641,28 @@ components:
           type: boolean
         is_active:
           type: boolean
+    PatchedWebhookUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 500
+        event_types:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 150
+        is_active:
+          type: boolean
+        version:
+          type: integer
     PatchedWorkCenterRequest:
       type: object
       properties:
@@ -26241,6 +26800,60 @@ components:
         * `completed` - Completed
         * `closed` - Closed
         * `cancelled` - Cancelled
+    ProvisionRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: Short code, capitals and digits.
+          pattern: ^[A-Z0-9][A-Z0-9_-]{1,29}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        company_code:
+          type: string
+          minLength: 1
+          pattern: ^[A-Z0-9][A-Z0-9_-]{1,29}$
+        company_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        state_code:
+          type: string
+          default: ''
+          maxLength: 2
+        gstin:
+          type: string
+          default: ''
+          maxLength: 15
+        fiscal_start_year:
+          type: integer
+          maximum: 2100
+          minimum: 2000
+        admin_email:
+          type: string
+          format: email
+          minLength: 1
+        admin_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        admin_password:
+          type: string
+          writeOnly: true
+          minLength: 12
+          description: Temporary; the admin must change it at first sign-in.
+          maxLength: 128
+      required:
+      - admin_email
+      - admin_name
+      - admin_password
+      - code
+      - company_code
+      - company_name
+      - name
     PurchaseGRNLine:
       type: object
       properties:
@@ -27308,6 +27921,17 @@ components:
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
       required:
       - score
+    ReasonBodyRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        version:
+          type: integer
+      required:
+      - reason
     ReasonEnum:
       enum:
       - damage
@@ -27324,6 +27948,17 @@ components:
         * `loss` - Loss
         * `opening_balance` - Opening
         * `correction` - Correction
+    ReasonVersionBodyRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 300
+        version:
+          type: integer
+      required:
+      - reason
     Reconciliation:
       type: object
       properties:
@@ -29538,6 +30173,18 @@ components:
         * `unmatched` - Unmatched
         * `matched` - Matched
         * `ignored` - Ignored
+    StatusRequest:
+      type: object
+      properties:
+        active:
+          type: boolean
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required:
+      - active
+      - reason
     Step:
       type: object
       properties:
@@ -30948,6 +31595,153 @@ components:
         * `scrap` - Scrap
         * `transit` - Transit
         * `general` - General
+    WebhookCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 500
+        event_types:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 150
+        company:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - event_types
+      - name
+      - url
+    WebhookDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        endpoint:
+          type: string
+          format: uuid
+          readOnly: true
+        event_id:
+          type: string
+          format: uuid
+          readOnly: true
+        event_type:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/WebhookDeliveryStatusEnum'
+          readOnly: true
+        attempts:
+          type: integer
+          readOnly: true
+        next_attempt_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_status_code:
+          type: integer
+          readOnly: true
+          nullable: true
+        last_error:
+          type: string
+          readOnly: true
+        delivered_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        body:
+          readOnly: true
+      required:
+      - attempts
+      - body
+      - created_at
+      - delivered_at
+      - endpoint
+      - event_id
+      - event_type
+      - id
+      - last_error
+      - last_status_code
+      - next_attempt_at
+      - status
+    WebhookDeliveryStatusEnum:
+      enum:
+      - pending
+      - succeeded
+      - failed
+      - dead
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `succeeded` - Succeeded
+        * `failed` - Failed
+        * `dead` - Dead
+    WebhookEndpoint:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        version:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        url:
+          type: string
+          format: uri
+          maxLength: 500
+        company:
+          type: string
+          format: uuid
+          nullable: true
+        event_types: {}
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - updated_at
+      - url
+      - version
+    WebhookSecret:
+      type: object
+      properties:
+        endpoint:
+          $ref: '#/components/schemas/WebhookEndpoint'
+        secret:
+          type: string
+      required:
+      - endpoint
+      - secret
     WorkCenter:
       type: object
       properties:

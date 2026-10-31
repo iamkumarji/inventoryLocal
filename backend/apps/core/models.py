@@ -185,6 +185,23 @@ class FeatureFlag(AuthzResourceMixin, TimeStampedModel):
     class Meta:
         db_table = "feature_flags"
 
+
+class OrganizationFeatureFlag(TimeStampedModel):
+    """One organization's setting for a flag. Overrides the platform default for that organization only,
+    so tenants switch modules and target roles/companies without affecting each other."""
+
+    organization = models.ForeignKey("organization.Organization", on_delete=models.CASCADE, related_name="+")
+    key = models.CharField(max_length=100)
+    enabled = models.BooleanField(default=False)
+    rules = models.JSONField(default=dict, blank=True)  # same shape as FeatureFlag.rules, scoped to this org
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "organization_feature_flags"
+        constraints = [models.UniqueConstraint(fields=["organization", "key"], name="uq_org_feature_flag")]
+
     def __str__(self) -> str:
         return self.key
 

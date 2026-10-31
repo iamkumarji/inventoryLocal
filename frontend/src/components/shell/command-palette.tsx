@@ -33,7 +33,7 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: {
   onSignOut: () => void;
 }) {
   const router = useRouter();
-  const { canAny, flag, can } = useSession();
+  const { canAny, flag, can, isOperator } = useSession();
   const { resolvedTheme, setTheme } = useTheme();
   const [search, setSearch] = useState("");
   const term = useDebounced(search.trim(), 250);
@@ -78,7 +78,7 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: {
             ))}
           </CommandGroup>
         )}
-        {visibleNavigation(canAny, flag).map((section) => (
+        {visibleNavigation(canAny, flag, isOperator).map((section) => (
           <CommandGroup key={section.label} heading={section.label}>
             {section.items.map((item) => (
               <CommandItem key={item.href} value={`${item.label} ${item.keywords ?? ""}`} onSelect={() => go(item.href)}>

@@ -22,6 +22,7 @@ import { isApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import { ago } from "@/lib/format";
 import { useSession } from "@/lib/session";
+import { temporaryPassword } from "@/lib/temporary-password";
 import { useUrlState } from "@/lib/use-url-state";
 
 type User = components["schemas"]["User"];
@@ -31,12 +32,6 @@ export function UserState({ user }: { user: User }) {
   if (user.is_locked) return <StatusBadge tone="rejected">Locked</StatusBadge>;
   if (user.must_change_password) return <StatusBadge tone="info">Invited</StatusBadge>;
   return <StatusBadge tone="approved">Active</StatusBadge>;
-}
-
-function temporaryPassword(): string {
-  const words = ["lathe", "anvil", "rivet", "gauge", "spindle", "boiler", "forge", "valve", "pallet", "gasket", "turbine", "crane"];
-  const bytes = crypto.getRandomValues(new Uint32Array(4));
-  return `${words[bytes[0] % words.length]}-${words[bytes[1] % words.length]}-${words[bytes[2] % words.length]}-${(bytes[3] % 900) + 100}`;
 }
 
 function NewUser() {

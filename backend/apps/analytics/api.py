@@ -101,7 +101,7 @@ class ForecastView(APIView):
         query = ForecastQuery(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = dict(query.validated_data)
-        item = Item.objects.filter(pk=params.pop("item")).first()
+        item = Item.objects.filter(pk=params.pop("item"), organization_id=request.user.organization_id).first()
         if item is None:
             raise NotFound()
         # Demand history comes only from warehouses whose stock ledger the user may read.

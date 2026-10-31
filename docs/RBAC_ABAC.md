@@ -163,3 +163,22 @@ Audited: login success/failure, MFA events, session revocation, permission/role/
 ## 11. Testing obligations
 - PDP unit tests for each step of the algorithm (default deny, scope matching, descendant expansion, validity windows, deny-overrides, MFA, self-approval, approval limits, SoD).
 - **Authorization matrix test**: every registered API endpoint is called as an unauthenticated user, a user with no roles and a user scoped to another company, and must return 401/403/404 accordingly.
+
+## 12. Multi-tenancy (organizations)
+
+One installation can host several **organizations** (tenants: unrelated businesses). Isolation holds at every layer:
+
+| Layer | Rule |
+|---|---|
+| Accounts | Every user belongs to exactly one organization (platform operators to none). Sign-in and existing sessions are refused while the organization is suspended. |
+| Grants | Role assignments, roles, policies, SoD rules, approval limits and routes belong to an organization; a grant's scope never reaches another organization, so lists and record views can't show another tenant's data. |
+| Company context | `X-Company-ID` is accepted only for companies the user has grants in; anything else falls back to the user's own companies. |
+| References in input | Every API related field resolves ids only inside the caller's organization (`apps/authorization/tenancy.py`, installed for all serializers): naming another tenant's item, supplier or account is a validation error, not a lookup. |
+| Shared master data | Items, partners, units are shared only *within* an organization (scope `shared` = the grant's organization). |
+| Feature flags | The platform sets defaults; each organization's switches and targeting are stored per organization (`OrganizationFeatureFlag`) and may only target its own users and companies. |
+| Operational views | The outbox view shows only events of the organization's companies; the audit log is bounded by grants. |
+| Platform operators | `is_platform_operator` users create (`POST /platform/organizations/`) and suspend organizations, with recent MFA. They hold no grants in any organization and see only directory figures (code, name, status, user and company counts) — never business data. |
+
+Proof: `backend/apps/platform/tests/test_tenant_isolation.py` provisions two tenants, crawls every list endpoint as one tenant's administrator (with every read permission) asserting none of the other tenant's ids appear, opens the other tenant's records by id (404), references them in a create (400), forges the company header, switches a module (other tenant unaffected), suspends a tenant, and checks the operator console is operator-only.
+
+Limits: tenants share one database and one set of encryption keys (logical isolation). Customers that need physical separation get their own installation (see `docs/runbooks/platform-operations.md`).

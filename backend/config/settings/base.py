@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     "apps.analytics",
     "apps.ops",
     "apps.integrations",
+    "apps.platform",
 ]
 
 MIDDLEWARE = [

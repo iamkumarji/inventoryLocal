@@ -14,13 +14,37 @@ _CACHE_SECONDS = 30
 def _all_flags() -> dict[str, dict]:
     data = cache.get(_CACHE_KEY)
     if data is None:
-        data = {f.key: {"default": f.enabled_default, "rules": f.rules or {}} for f in FeatureFlag.objects.all()}
+        from .models import OrganizationFeatureFlag
+
+        data = {
+            f.key: {"default": f.enabled_default, "rules": f.rules or {}, "orgs": {}} for f in FeatureFlag.objects.all()
+        }
+        for o in OrganizationFeatureFlag.objects.all():
+            if o.key in data:
+                data[o.key]["orgs"][str(o.organization_id)] = {"default": o.enabled, "rules": o.rules or {}}
         cache.set(_CACHE_KEY, data, _CACHE_SECONDS)
     return data
 
 
 def invalidate() -> None:
     cache.delete(_CACHE_KEY)
+    cache.delete(_ORG_CACHE_KEY)
+
+
+_ORG_CACHE_KEY = "flags:company-org:v1"
+
+
+def _organization_of(company_id) -> str | None:
+    if company_id is None:
+        return None
+    mapping = cache.get(_ORG_CACHE_KEY)
+    if mapping is None or str(company_id) not in mapping:
+        from django.apps import apps
+
+        company_model = apps.get_model("organization", "Company")  # no import: core stays below other modules
+        mapping = {str(pk): str(org) for pk, org in company_model.objects.values_list("pk", "organization_id")}
+        cache.set(_ORG_CACHE_KEY, mapping, _CACHE_SECONDS)
+    return mapping.get(str(company_id))
 
 
 def _evaluate(flag: dict, user_id: UUID | None, role_codes: Iterable[str], company_id: UUID | None) -> bool:
@@ -36,18 +60,34 @@ def _evaluate(flag: dict, user_id: UUID | None, role_codes: Iterable[str], compa
     return bool(flag["default"])
 
 
+def _effective(flag: dict, organization_id) -> dict:
+    """The organization's own setting when it has one, else the platform default."""
+    return flag["orgs"].get(str(organization_id), flag) if organization_id is not None else flag
+
+
 def is_enabled(
-    key: str, *, user_id: UUID | None = None, role_codes: Iterable[str] = (), company_id: UUID | None = None
+    key: str,
+    *,
+    user_id: UUID | None = None,
+    role_codes: Iterable[str] = (),
+    company_id: UUID | None = None,
+    organization_id: UUID | None = None,
 ) -> bool:
     flag = _all_flags().get(key)
     if flag is None:
         return False
-    return _evaluate(flag, user_id, role_codes, company_id)
+    org = organization_id if organization_id is not None else _organization_of(company_id)
+    return _evaluate(_effective(flag, org), user_id, role_codes, company_id)
 
 
-def effective_flags(*, user_id: UUID | None, role_codes: Iterable[str], company_id: UUID | None) -> dict[str, bool]:
+def effective_flags(
+    *, user_id: UUID | None, role_codes: Iterable[str], company_id: UUID | None, organization_id: UUID | None = None
+) -> dict[str, bool]:
     role_codes = list(role_codes)
-    return {key: _evaluate(flag, user_id, role_codes, company_id) for key, flag in _all_flags().items()}
+    org = organization_id if organization_id is not None else _organization_of(company_id)
+    return {
+        key: _evaluate(_effective(flag, org), user_id, role_codes, company_id) for key, flag in _all_flags().items()
+    }
 
 
 def module_flag_key(module: str) -> str:

@@ -9,8 +9,10 @@ class AuthorizationConfig(AppConfig):
     def ready(self) -> None:
         from apps.identity.services import register_session_policy_provider
 
-        from . import signals  # noqa: F401
+        from . import signals, tenancy  # noqa: F401
         from .snapshot import get_snapshot
+
+        tenancy.install()  # references in API input resolve only within the caller's organization
 
         def session_policy(user):
             snapshot = get_snapshot(user.pk)

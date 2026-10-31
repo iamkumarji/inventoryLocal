@@ -39,6 +39,9 @@ class User(AuthzResourceMixin, AbstractBaseUser, TimeStampedModel):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
+    # Runs the hosting platform (creates and suspends organizations). Belongs to no organization,
+    # holds no business grants and can't read tenant data.
+    is_platform_operator = models.BooleanField(default=False)
     mfa_enforced = models.BooleanField(default=False)
     failed_login_count = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
