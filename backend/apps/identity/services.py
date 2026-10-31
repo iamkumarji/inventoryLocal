@@ -51,7 +51,14 @@ def _session_policy(user: User) -> dict:
     policy = {"mfa_required": False, "max_session_minutes": None}
     if _session_policy_provider is not None:
         policy.update(_session_policy_provider(user))
-    policy["mfa_required"] = policy["mfa_required"] or user.mfa_enforced or user.is_superuser
+    organization = user.organization if user.organization_id else None
+    policy["mfa_required"] = (
+        policy["mfa_required"]
+        or user.mfa_enforced
+        or user.is_superuser
+        or user.is_platform_operator
+        or bool(organization and organization.require_mfa_for_all)
+    )
     return policy
 
 
@@ -536,6 +543,39 @@ def unlock_user(ctx: ActorContext, user: User) -> User:
     user.refresh_from_db()
     audit.record("identity.user.unlocked", ctx=ctx, resource_type="identity.user", resource_id=user.pk)
     return user
+
+
+def mfa_required_for(user: User) -> bool:
+    return _session_policy(user)["mfa_required"]
+
+
+@transaction.atomic
+def disable_own_mfa(ctx: ActorContext, session: AuthSession, *, password: str, code: str) -> None:
+    """A user turns off their own two-step sign-in, only where no rule requires it, proving both
+    factors. Admins can still require it per user, per role or for the whole organization."""
+    user = User.objects.select_for_update().get(pk=ctx.user_id)
+    if mfa_required_for(user):
+        raise BusinessRuleViolation(
+            "Two-step sign-in is required for your account by your organization, a role or an administrator.",
+            code="mfa_required_by_policy",
+        )
+    if not MFADevice.objects.filter(user=user, confirmed_at__isnull=False).exists():
+        raise BusinessRuleViolation("Two-step sign-in isn't set up.", code="mfa_not_enrolled")
+    if not user.check_password(password) or _verify_second_factor(user, code) is None:
+        audit.record(
+            "identity.mfa.disable_failed",
+            ctx=ctx,
+            resource_type="identity.user",
+            resource_id=user.pk,
+            outcome=AuditEvent.Outcome.FAILURE,
+        )
+        raise AuthenticationFailedError("Password or code is incorrect.")
+    MFADevice.objects.filter(user=user).delete()
+    MFARecoveryCode.objects.filter(user=user).delete()
+    session.mfa_verified_at = None
+    session.save(update_fields=["mfa_verified_at"])
+    revoke_user_sessions(user, "mfa_disabled", except_session_id=session.pk, ctx=ctx)
+    audit.record("identity.mfa.disabled_by_user", ctx=ctx, resource_type="identity.user", resource_id=user.pk)
 
 
 @transaction.atomic

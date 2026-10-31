@@ -195,6 +195,10 @@ class MeView(APIView):
                     "enrolled": device is not None,
                     "required": services._session_policy(user)["mfa_required"],
                     "verified_at": session.mfa_verified_at,
+                    # Organization policy: whether sensitive actions ask for a fresh code.
+                    "step_up_for_sensitive_actions": (
+                        user.organization.require_mfa_for_sensitive_actions if user.organization_id else True
+                    ),
                 },
                 "session": {
                     "id": str(session.pk),
@@ -253,6 +257,25 @@ class TOTPSetupView(APIView):
     )
     def post(self, request):
         return Response(services.begin_totp_enrollment(actor_for(request)))
+
+
+class DisableMFASerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+    code = serializers.CharField(max_length=20, help_text="Current authenticator code or a recovery code.")
+
+
+class DisableMFAView(APIView):
+    """Turn off your own two-step sign-in (only where no organization, role or admin rule requires it)."""
+
+    authz_authenticated_only = True
+    throttle_scope = "auth"
+
+    @extend_schema(request=DisableMFASerializer, responses={204: None}, tags=["auth"])
+    def post(self, request):
+        data = DisableMFASerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        services.disable_own_mfa(actor_for(request), request.auth, **data.validated_data)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TOTPConfirmView(APIView):

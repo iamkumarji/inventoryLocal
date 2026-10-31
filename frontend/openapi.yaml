@@ -2295,6 +2295,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/Me'
           description: ''
+  /api/v1/auth/mfa/disable/:
+    post:
+      operationId: auth_mfa_disable_create
+      description: Turn off your own two-step sign-in (only where no organization,
+        role or admin rule requires it).
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisableMFARequest'
+        required: true
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/auth/mfa/recovery-codes/regenerate/:
     post:
       operationId: auth_mfa_recovery_codes_regenerate_create
@@ -13081,6 +13100,42 @@ paths:
               schema:
                 $ref: '#/components/schemas/ScopeTree'
           description: ''
+  /api/v1/organization/security/:
+    get:
+      operationId: organization_security_retrieve
+      description: The caller's organization two-step sign-in policy.
+      tags:
+      - organization
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecuritySettings'
+          description: ''
+    patch:
+      operationId: organization_security_partial_update
+      description: The caller's organization two-step sign-in policy.
+      tags:
+      - organization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSecuritySettingsRequest'
+      security:
+      - cookieSession: []
+        bearerSession: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecuritySettings'
+          description: ''
   /api/v1/organization/warehouses/:
     get:
       operationId: organization_warehouses_list
@@ -19288,6 +19343,21 @@ components:
       - email
       - full_name
       - id
+    DisableMFARequest:
+      type: object
+      properties:
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+          description: Current authenticator code or a recovery code.
+          maxLength: 20
+      required:
+      - code
+      - password
     DisposalKindEnum:
       enum:
       - sale
@@ -25492,6 +25562,16 @@ components:
           maxLength: 300
         version:
           type: integer
+    PatchedSecuritySettingsRequest:
+      type: object
+      properties:
+        require_mfa_for_all:
+          type: boolean
+          description: Every user must set up two-step sign-in (authenticator app).
+        require_mfa_for_sensitive_actions:
+          type: boolean
+          description: Ask for a fresh code before actions marked sensitive (payments,
+            salaries...).
     PatchedSupplierProfileRequest:
       type: object
       properties:
@@ -29744,6 +29824,16 @@ components:
       - 'on'
       - quantity
       - reason
+    SecuritySettings:
+      type: object
+      properties:
+        require_mfa_for_all:
+          type: boolean
+          description: Every user must set up two-step sign-in (authenticator app).
+        require_mfa_for_sensitive_actions:
+          type: boolean
+          description: Ask for a fresh code before actions marked sensitive (payments,
+            salaries...).
     Serial:
       type: object
       properties:

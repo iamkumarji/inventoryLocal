@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { api, unwrap } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
@@ -57,11 +59,11 @@ export function UserDetail() {
     queryFn: () => unwrap(api.GET("/api/v1/identity/users/{id}/sessions/", { params: { path: { id } } })),
     enabled: can("identity.auth_session.read"),
   });
-  const [profile, setProfile] = useState({ full_name: "", phone: "" });
+  const [profile, setProfile] = useState({ full_name: "", phone: "", mfa_enforced: false });
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   if (user.data && user.data.updated_at !== syncedAt) {
     setSyncedAt(user.data.updated_at);
-    setProfile({ full_name: user.data.full_name, phone: user.data.phone });
+    setProfile({ full_name: user.data.full_name, phone: user.data.phone, mfa_enforced: user.data.mfa_enforced });
   }
 
   const act = useMutation({
@@ -169,6 +171,20 @@ export function UserDetail() {
               <dd>{u.mfa_enrolled ? <StatusBadge tone="approved">On</StatusBadge> : u.mfa_enforced ? <StatusBadge tone="pending">Required, not set up</StatusBadge> : "Off"}</dd>
               <dt className="text-muted-foreground">Created</dt><dd>{dateTime(u.created_at)}</dd>
             </dl>
+            <div className="flex items-start justify-between gap-4 rounded-md border px-3 py-2.5">
+              <div className="text-sm">
+                <Label htmlFor="mfa_enforced" className="font-medium">Require two-step sign-in</Label>
+                <p className="text-muted-foreground">
+                  When on, this person must use an authenticator app to sign in. Organization and role rules can require it too.
+                </p>
+              </div>
+              <Switch
+                id="mfa_enforced"
+                checked={profile.mfa_enforced}
+                onCheckedChange={(v) => setProfile({ ...profile, mfa_enforced: v })}
+                disabled={!can("identity.user.update")}
+              />
+            </div>
             {can("identity.user.update") && <Button type="submit" variant="outline" disabled={save.isPending} className="justify-self-start">Save profile</Button>}
           </form>
         </Section>

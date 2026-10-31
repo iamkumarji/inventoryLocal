@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 from datetime import date
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Model
 from rest_framework.exceptions import ValidationError
@@ -12,7 +13,7 @@ from rest_framework.exceptions import ValidationError
 from apps.audit import services as audit
 from apps.authorization import pdp
 from apps.core.context import ActorContext
-from apps.core.exceptions import BusinessRuleViolation, NotFound, VersionConflict
+from apps.core.exceptions import BusinessRuleViolation, MFARequired, NotFound, VersionConflict
 
 from .models import (
     Branch,
@@ -293,3 +294,39 @@ def get_node(model: type[Model], pk) -> Model:
         return model.objects.get(pk=pk)
     except (model.DoesNotExist, ValueError, ValidationError) as exc:
         raise NotFound() from exc
+
+
+SECURITY_FIELDS = ("require_mfa_for_all", "require_mfa_for_sensitive_actions")
+
+
+@transaction.atomic
+def update_security_settings(ctx: ActorContext, organization: Organization, **changes) -> Organization:
+    """Organization-wide two-step sign-in policy. Relaxing it needs a recently verified administrator
+    (when they use MFA themselves) and is audited."""
+    organization = Organization.objects.select_for_update().get(pk=organization.pk)
+    pdp.require(ctx, "organization.organization.update", pdp.Resource.of(organization))
+    changes = {k: bool(v) for k, v in changes.items() if k in SECURITY_FIELDS}
+    relaxing = any(getattr(organization, k) and not v for k, v in changes.items())
+    if relaxing and _uses_mfa(ctx.user) and not ctx.mfa_verified_within(settings.ERP["STEP_UP_MINUTES"]):
+        raise MFARequired()
+    before = {k: getattr(organization, k) for k in SECURITY_FIELDS}
+    for key, value in changes.items():
+        setattr(organization, key, value)
+    organization.save(update_fields=[*changes, "updated_at"])
+    audit.record(
+        "organization.security_settings.updated",
+        ctx=ctx,
+        resource_type="organization.organization",
+        resource_id=organization.pk,
+        organization_id=organization.pk,
+        summary="Two-step sign-in policy changed",
+        changes=audit.diff(before, {k: getattr(organization, k) for k in SECURITY_FIELDS}),
+    )
+    return organization
+
+
+def _uses_mfa(user) -> bool:
+    from django.apps import apps as django_apps
+
+    device = django_apps.get_model("identity", "MFADevice")
+    return device.objects.filter(user=user, confirmed_at__isnull=False).exists()

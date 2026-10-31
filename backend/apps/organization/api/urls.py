@@ -11,4 +11,8 @@ router.register("organization/facilities", views.FacilityViewSet, basename="faci
 router.register("organization/warehouses", views.WarehouseViewSet, basename="warehouse")
 router.register("organization/fiscal-years", views.FiscalYearViewSet, basename="fiscal-year")
 
-urlpatterns = [path("organization/scope-tree/", views.ScopeTreeView.as_view(), name="scope-tree"), *router.urls]
+urlpatterns = [
+    path("organization/scope-tree/", views.ScopeTreeView.as_view(), name="scope-tree"),
+    path("organization/security/", views.SecuritySettingsView.as_view(), name="security-settings"),
+    *router.urls,
+]

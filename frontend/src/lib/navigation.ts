@@ -233,6 +233,8 @@ export const NAVIGATION: NavSection[] = [
         keywords: "role assignments scope" },
       { label: "Policies", href: "/admin/policies", icon: ShieldCheck, anyOf: ["authorization.policy.read"],
         keywords: "abac rules deny allow" },
+      { label: "Sign-in security", href: "/admin/security", icon: ShieldCheck, anyOf: ["organization.organization.read"],
+        keywords: "mfa two-step 2fa authenticator otp" },
       { label: "Segregation of duties", href: "/admin/sod", icon: Split, anyOf: ["authorization.sod_rule.read"],
         keywords: "sod conflicts maker checker" },
     ],

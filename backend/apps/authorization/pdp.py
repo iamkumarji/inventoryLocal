@@ -158,6 +158,13 @@ class _Evaluation:
         return [p for p in source if p.organization_id == org_id and p.targets(self.action, rtype)]
 
 
+def _step_up_required(user) -> bool:
+    """Organizations may turn off the second check before MFA-marked actions (default: required)."""
+    if not user.organization_id:
+        return True
+    return user.organization.require_mfa_for_sensitive_actions
+
+
 def _pre_checks(ctx: ActorContext, action: str) -> tuple[Decision | None, PolicyStore | None, SubjectSnapshot | None]:
     user = ctx.user
     if user is None or not user.is_active or not user.pk:
@@ -177,7 +184,11 @@ def _pre_checks(ctx: ActorContext, action: str) -> tuple[Decision | None, Policy
         return _deny("feature_disabled"), store, snapshot
     if snapshot.mfa_required and ctx.mfa_verified_at is None:
         return _deny("mfa_required"), store, snapshot
-    if store.permissions[action].requires_mfa and not ctx.mfa_verified_within(settings.ERP["STEP_UP_MINUTES"]):
+    if (
+        store.permissions[action].requires_mfa
+        and _step_up_required(user)
+        and not ctx.mfa_verified_within(settings.ERP["STEP_UP_MINUTES"])
+    ):
         return _deny("mfa_required"), store, snapshot
     return None, store, snapshot
 

@@ -954,6 +954,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/mfa/disable/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Turn off your own two-step sign-in (only where no organization, role or admin rule requires it). */
+        post: operations["auth_mfa_disable_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/mfa/recovery-codes/regenerate/": {
         parameters: {
             query?: never;
@@ -5327,6 +5344,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/security/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The caller's organization two-step sign-in policy. */
+        get: operations["organization_security_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description The caller's organization two-step sign-in policy. */
+        patch: operations["organization_security_partial_update"];
+        trace?: never;
+    };
     "/api/v1/organization/warehouses/": {
         parameters: {
             query?: never;
@@ -7826,6 +7861,11 @@ export interface components {
             full_name: string;
             /** Format: email */
             email: string;
+        };
+        DisableMFARequest: {
+            password: string;
+            /** @description Current authenticator code or a recovery code. */
+            code: string;
         };
         /**
          * @description * `sale` - Sale
@@ -10822,6 +10862,12 @@ export interface components {
             notes?: string;
             version?: number;
         };
+        PatchedSecuritySettingsRequest: {
+            /** @description Every user must set up two-step sign-in (authenticator app). */
+            require_mfa_for_all?: boolean;
+            /** @description Ask for a fresh code before actions marked sensitive (payments, salaries...). */
+            require_mfa_for_sensitive_actions?: boolean;
+        };
         PatchedSupplierProfileRequest: {
             payment_terms_days?: number;
             currency?: string;
@@ -12477,6 +12523,12 @@ export interface components {
             /** Format: decimal */
             quantity: string;
             reason: string;
+        };
+        SecuritySettings: {
+            /** @description Every user must set up two-step sign-in (authenticator app). */
+            require_mfa_for_all?: boolean;
+            /** @description Ask for a fresh code before actions marked sensitive (payments, salaries...). */
+            require_mfa_for_sensitive_actions?: boolean;
         };
         Serial: {
             /** Format: uuid */
@@ -15290,6 +15342,28 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Me"];
                 };
+            };
+        };
+    };
+    auth_mfa_disable_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisableMFARequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -23806,6 +23880,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScopeTree"];
+                };
+            };
+        };
+    };
+    organization_security_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
+                };
+            };
+        };
+    };
+    organization_security_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedSecuritySettingsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
                 };
             };
         };

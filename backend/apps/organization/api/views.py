@@ -7,8 +7,9 @@ from rest_framework.views import APIView
 from apps.authorization import pdp
 from apps.authorization.context import actor_for
 from apps.authorization.drf import ERPGenericViewSet
+from apps.core.exceptions import NotFound
 from apps.organization import services
-from apps.organization.models import Branch, Company, Department, Facility, FiscalYear, Warehouse
+from apps.organization.models import Branch, Company, Department, Facility, FiscalYear, Organization, Warehouse
 
 from . import serializers as s
 
@@ -158,6 +159,41 @@ class FiscalYearViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, ERPGen
     @action(detail=True, methods=["get"])
     def periods(self, request, pk=None):
         return Response(s.FiscalPeriodSerializer(self.get_object().periods.all(), many=True).data)
+
+
+class SecuritySettingsSerializer(serializers.Serializer):
+    require_mfa_for_all = serializers.BooleanField(
+        required=False, help_text="Every user must set up two-step sign-in (authenticator app)."
+    )
+    require_mfa_for_sensitive_actions = serializers.BooleanField(
+        required=False, help_text="Ask for a fresh code before actions marked sensitive (payments, salaries...)."
+    )
+
+
+class SecuritySettingsView(APIView):
+    """The caller's organization two-step sign-in policy."""
+
+    authz_resource = "organization.organization"
+    authz_actions = {"get": "read", "patch": "update"}
+
+    def _organization(self, request):
+        org = Organization.objects.filter(pk=request.user.organization_id).first()
+        if org is None:
+            raise NotFound()
+        return org
+
+    @extend_schema(responses=SecuritySettingsSerializer)
+    def get(self, request):
+        org = self._organization(request)
+        pdp.require(actor_for(request), "organization.organization.read", pdp.Resource.of(org))
+        return Response({k: getattr(org, k) for k in services.SECURITY_FIELDS})
+
+    @extend_schema(request=SecuritySettingsSerializer, responses=SecuritySettingsSerializer)
+    def patch(self, request):
+        data = SecuritySettingsSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        org = services.update_security_settings(actor_for(request), self._organization(request), **data.validated_data)
+        return Response({k: getattr(org, k) for k in services.SECURITY_FIELDS})
 
 
 class ScopeTreeView(APIView):

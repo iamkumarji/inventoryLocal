@@ -14,6 +14,9 @@ class Organization(AuthzResourceMixin, ActorStampedModel):
     base_currency = models.CharField(max_length=3, default="INR")
     timezone = models.CharField(max_length=64, default="Asia/Kolkata")
     is_active = models.BooleanField(default=True)
+    # Security policy, set by the organization's administrators (docs/RBAC_ABAC.md §8).
+    require_mfa_for_all = models.BooleanField(default=False)  # every user must enrol two-step sign-in
+    require_mfa_for_sensitive_actions = models.BooleanField(default=True)  # step-up before MFA-marked actions
 
     authz_resource_type = "organization.organization"
     authz_scope_fields = {"organization": "id"}

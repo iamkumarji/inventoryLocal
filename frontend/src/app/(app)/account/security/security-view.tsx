@@ -6,18 +6,22 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { Field, FormError } from "@/components/erp/field";
 import { PageHeader, Section } from "@/components/erp/page-header";
 import { PasswordChangeForm } from "@/components/erp/password-change-form";
 import { StatusBadge } from "@/components/erp/status";
 import { ErrorState, RowsSkeleton } from "@/components/erp/states";
 import { useStepUp } from "@/components/shell/step-up";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, unwrap } from "@/lib/api/client";
+import { isApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import { ago, dateTime } from "@/lib/format";
-import { useSession } from "@/lib/session";
+import { ME_KEY, useSession } from "@/lib/session";
 import { useUrlState } from "@/lib/use-url-state";
 
 function Sessions() {
@@ -49,6 +53,52 @@ function Sessions() {
         </li>
       ))}
     </ul>
+  );
+}
+
+function TurnOffMfa() {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const turnOff = useMutation({
+    mutationFn: () => unwrap(api.POST("/api/v1/auth/mfa/disable/", { body: { password, code } })),
+    onSuccess: () => {
+      setOpen(false);
+      setPassword("");
+      setCode("");
+      queryClient.invalidateQueries({ queryKey: ME_KEY });
+      toast("Two-step sign-in turned off. You can turn it on again any time.");
+    },
+  });
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="mt-3">Turn off</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Turn off two-step sign-in?</DialogTitle>
+          <DialogDescription>
+            You’ll sign in with your password only, and your recovery codes stop working. Confirm with your password and a
+            current code from your authenticator app.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); turnOff.mutate(); }}>
+          <FormError message={turnOff.error ? (isApiError(turnOff.error) ? turnOff.error.summary() : "Couldn't reach the server.") : undefined} />
+          <Field id="mfa-off-password" label="Password">
+            <Input id="mfa-off-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+          <Field id="mfa-off-code" label="Code from your authenticator app">
+            <Input id="mfa-off-code" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} />
+          </Field>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Keep it on</Button>
+            <Button type="submit" variant="destructive" disabled={!password || code.trim().length < 6 || turnOff.isPending}>Turn off</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -152,9 +202,13 @@ export function SecurityView() {
                   <p className="text-muted-foreground">
                     {me.mfa.enrolled
                       ? "Lost your phone? Sign in with a recovery code, then ask an administrator to reset your authenticator."
-                      : me.mfa.required ? "Your role requires it." : "Turn it on to protect approvals made in your name."}
+                      : me.mfa.required ? "Your organization or role requires it." : "Turn it on to protect approvals made in your name."}
                   </p>
-                  {!me.mfa.enrolled && <Button asChild size="sm" className="mt-3"><Link href="/setup/mfa">Set up now</Link></Button>}
+                  {me.mfa.enrolled && me.mfa.required && (
+                    <p className="mt-1 text-muted-foreground">Required for your account, so it can’t be turned off here.</p>
+                  )}
+                  {!me.mfa.enrolled && <Button asChild size="sm" className="mt-3"><Link href="/setup/mfa">Turn on</Link></Button>}
+                  {me.mfa.enrolled && !me.mfa.required && <TurnOffMfa />}
                 </div>
               </div>
               {me.mfa.enrolled && <div className="border-t"><RecoveryCodes /></div>}

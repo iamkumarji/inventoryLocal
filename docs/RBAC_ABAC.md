@@ -182,3 +182,14 @@ One installation can host several **organizations** (tenants: unrelated business
 Proof: `backend/apps/platform/tests/test_tenant_isolation.py` provisions two tenants, crawls every list endpoint as one tenant's administrator (with every read permission) asserting none of the other tenant's ids appear, opens the other tenant's records by id (404), references them in a create (400), forges the company header, switches a module (other tenant unaffected), suspends a tenant, and checks the operator console is operator-only.
 
 Limits: tenants share one database and one set of encryption keys (logical isolation). Customers that need physical separation get their own installation (see `docs/runbooks/platform-operations.md`).
+
+## 13. Two-step sign-in policy (per organization)
+
+Administrators set it under **Admin → Sign-in security** (`/api/v1/organization/security/`, permission `organization.organization.update`):
+
+| Setting | Default | Effect |
+|---|---|---|
+| Two-step sign-in for everyone | off | On: every user must enrol an authenticator; users without one are restricted to enrolment at next sign-in. |
+| Fresh code before sensitive actions | on | On: permissions marked MFA in the catalogue need a code verified in the last `ERP_STEP_UP_MINUTES`. Off: they don't (approval limits, maker-checker, SoD and audit still apply). |
+
+MFA is also required per user (`mfa_enforced`, set by an admin on the user's page) and per role (`mfa_required`). Users may turn their own two-step sign-in off (password + current code) only when none of these rules applies. Relaxing the policy needs a recently verified administrator when they use MFA themselves, and every change is audited. Platform operators and break-glass superusers always need MFA; the explicit self-approval exception and recovery-code regeneration always need a fresh code.
