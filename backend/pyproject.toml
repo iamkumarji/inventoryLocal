@@ -1,0 +1,40 @@
+[project]
+name = "otabu-erp-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+addopts = "-q --strict-markers --reuse-db"
+markers = ["req(id): links a test to an SRS requirement ID"]
+filterwarnings = ["ignore::DeprecationWarning:pyotp.*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "DJ", "BLE"]
+ignore = ["S101", "S105", "S106", "B904", "DJ001", "DJ008", "S311"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S", "B"]
+"config/settings/*.py" = ["F405", "F403"]
+
+[tool.importlinter]
+root_packages = ["apps"]
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Core depends on no other ERP module"
+type = "forbidden"
+source_modules = ["apps.core.models", "apps.core.context", "apps.core.exceptions", "apps.core.outbox", "apps.core.idempotency", "apps.core.flags", "apps.core.ids", "apps.core.fields", "apps.core.db", "apps.core.crypto"]
+forbidden_modules = ["apps.organization", "apps.identity", "apps.authorization", "apps.audit"]
+
+[[tool.importlinter.contracts]]
+name = "Identity does not import authorization (it is below it)"
+type = "forbidden"
+source_modules = ["apps.identity.models", "apps.identity.services", "apps.identity.mfa", "apps.identity.authentication"]
+forbidden_modules = ["apps.authorization"]

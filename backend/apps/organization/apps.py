@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class OrganizationConfig(AppConfig):
+    name = "apps.organization"
+    label = "organization"
+    verbose_name = "Organization"

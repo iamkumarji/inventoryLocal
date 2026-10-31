@@ -1,0 +1,18 @@
+# Runtime dependencies (pinned to minor versions; lock with pip-compile for releases)
+Django>=5.2.7,<5.3
+djangorestframework>=3.16,<3.19
+drf-spectacular>=0.28,<0.31
+django-filter>=25.1,<27
+psycopg[binary]>=3.2,<3.4
+argon2-cffi>=23.1
+pyotp>=2.9,<3
+cryptography>=44
+celery[redis]>=5.5,<5.7
+django-redis>=5.4,<8
+channels>=4.2,<5
+channels-redis>=4.2,<5
+uvicorn[standard]>=0.32
+gunicorn>=23
+sentry-sdk>=2.18
+django-prometheus>=2.3
+boto3>=1.35,<2  # documents: MinIO/S3 storage

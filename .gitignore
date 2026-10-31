@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+backend/staticfiles/
+# Node
+node_modules/
+.next/
+# Env and secrets
+.env
+.env.*
+!.env.example
+infrastructure/traefik/certs/
+# OS
+.DS_Store
+# Build and test output
+.next-*/
+dist/
+test-results*/
+playwright-report/
+e2e/.state*/
+mobile/.expo/
+mobile/ios/
+mobile/android/
+*.tsbuildinfo
+# Local data
+backend/var/
+*.dump
+*.sqlite3

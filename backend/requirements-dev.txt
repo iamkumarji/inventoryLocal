@@ -1,0 +1,10 @@
+-r requirements.txt
+pytest>=8.3
+pytest-django>=4.9
+pytest-cov>=6.0
+factory-boy>=3.3
+time-machine>=2.15
+ruff>=0.8
+import-linter>=2.1
+daphne>=4.1  # channels.testing
+moto[s3]>=5.0,<6  # S3/MinIO document storage tests

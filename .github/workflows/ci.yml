@@ -1,0 +1,46 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env: {POSTGRES_DB: otabu_erp, POSTGRES_USER: erp, POSTGRES_PASSWORD: erp}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U erp" --health-interval 5s --health-retries 10
+    defaults: {run: {working-directory: backend}}
+    env:
+      DATABASE_URL: postgres://erp:erp@localhost:5432/otabu_erp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check . && ruff format --check .
+      - run: lint-imports
+      - run: python manage.py makemigrations --check --dry-run
+        env: {DJANGO_SETTINGS_MODULE: config.settings.test}
+      - run: pytest --create-db --cov=apps --cov-fail-under=85
+      - run: python manage.py spectacular --validate --fail-on-warn --file /tmp/schema.yaml
+        env: {DJANGO_SETTINGS_MODULE: config.settings.test}
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: frontend}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pnpm install --frozen-lockfile
+      # The committed OpenAPI file and TS types must match the backend (contract drift check).
+      - run: pip install -r ../backend/requirements.txt
+      - run: python manage.py spectacular --validate --fail-on-warn --file ../frontend/openapi.yaml
+        working-directory: backend
+        env: {DJANGO_SETTINGS_MODULE: config.settings.test}
+      - run: pnpm api:types && git diff --exit-code -- openapi.yaml src/lib/api/schema.d.ts
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build

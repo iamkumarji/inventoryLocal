@@ -1,0 +1,55 @@
+http:
+  routers:
+    api:
+      rule: "PathPrefix(`/api/`) || PathPrefix(`/ws/`) || PathPrefix(`/health/`)"
+      entryPoints: [websecure]
+      service: api
+      middlewares: [security-headers, api-ratelimit]
+      tls: {}
+    web:
+      rule: "PathPrefix(`/`)"
+      priority: 1  # everything that isn't /api, /ws or /health goes to the Next.js app
+      entryPoints: [websecure]
+      service: web
+      middlewares: [security-headers]
+      tls: {}
+    files:
+      # Presigned document links (DOCUMENTS_S3_PUBLIC_ENDPOINT). Only signed requests succeed: the
+      # bucket has no anonymous access. Replace the host with your files hostname.
+      rule: "Host(`files.erp.example.internal`)"
+      entryPoints: [websecure]
+      service: minio
+      tls: {}
+    # /metrics is intentionally NOT routed: Prometheus scrapes it on the internal network.
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: same-origin
+        # 'unsafe-inline' scripts: Next.js Partial Prerendering inlines its payload and is incompatible
+        # with nonces (see docs/DECISIONS.md D-33). Everything else is locked down.
+        contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' wss:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; worker-src 'self' blob:; upgrade-insecure-requests"
+        permissionsPolicy: "camera=(self), geolocation=(), microphone=(), payment=()"
+    api-ratelimit:
+      rateLimit: {average: 100, burst: 200}
+  services:
+    minio:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9000"
+    web:
+      loadBalancer:
+        servers:
+          - url: "http://web:3000"
+    api:
+      loadBalancer:
+        healthCheck: {path: /health/ready, interval: 10s}
+        servers:
+          - url: "http://api:8000"
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/erp.crt
+      keyFile: /etc/traefik/certs/erp.key

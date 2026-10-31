@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "OtabuPro ERP",
+    "slug": "otabu-erp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.otabupro.erp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1F2326",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "in.otabupro.erp"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": false
+          }
+        }
+      ],
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to scan barcodes and capture delivery and receipt photos.",
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to record where a delivery was completed."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to attach receipt photos.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to take receipt and delivery photos."
+        }
+      ]
+    ],
+    "scheme": "otabuerp",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": ""
+    }
+  }
+}

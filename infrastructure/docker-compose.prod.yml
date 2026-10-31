@@ -1,0 +1,119 @@
+# Single-host production baseline (see docs/ARCHITECTURE.md §3 for the multi-VM topology).
+name: otabu-erp
+x-app: &app
+  image: otabu-erp-backend:${ERP_VERSION:-latest}
+  build: {context: .., dockerfile: infrastructure/docker/backend.Dockerfile}
+  env_file: .env
+  restart: unless-stopped
+  networks: [internal]
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+services:
+  traefik:
+    image: traefik:v3.1.6
+    command: ["--configFile=/etc/traefik/traefik.yml"]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./traefik/certs:/etc/traefik/certs:ro
+    networks: [internal]
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    restart: "no"
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
+
+  api:
+    <<: *app
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    deploy: {replicas: 2}
+
+  web:
+    image: otabu-erp-web:${ERP_VERSION:-latest}
+    build: {context: .., dockerfile: infrastructure/docker/frontend.Dockerfile}
+    environment:
+      ERP_BACKEND_URL: http://api:8000
+    restart: unless-stopped
+    networks: [internal]
+    depends_on: [api]
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency", "4",
+              "-Q", "default,outbox,notifications,reports,integrations,scheduled"]
+
+  beat:
+    <<: *app
+    command: ["celery", "-A", "config", "beat", "-l", "info"]
+    deploy: {replicas: 1}  # exactly one scheduler
+
+  postgres:
+    image: postgres:16.4-alpine
+    env_file: .env
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    command: server /data --console-address ":9001"
+    env_file: .env
+    volumes: [miniodata:/data]
+    networks: [internal]
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    entrypoint: ["/bin/sh", "/init.sh"]
+    env_file: .env
+    volumes: [./minio/init.sh:/init.sh:ro]
+    networks: [internal]
+    depends_on: [minio]
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes: [./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro, promdata:/prometheus]
+    networks: [internal]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes: [./grafana/provisioning:/etc/grafana/provisioning:ro, grafanadata:/var/lib/grafana]
+    networks: [internal]
+    restart: unless-stopped
+
+networks:
+  internal: {}
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  promdata:
+  grafanadata:

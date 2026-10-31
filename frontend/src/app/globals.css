@@ -1,0 +1,179 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * OtabuPro design tokens — "plant floor signalling".
+ * Graphite and concrete neutrals; marking yellow only for "where you are" and
+ * "what to do next"; status colours follow ISO 3864 safety semantics.
+ */
+:root {
+  --radius: 0.5rem;
+
+  --concrete: #eef0f1;
+  --graphite: #20262b;
+  --steel: #5c6870;
+  --line: #d3d8db;
+  --marking: #f5c400;
+
+  --background: var(--concrete);
+  --foreground: var(--graphite);
+  --card: #ffffff;
+  --card-foreground: var(--graphite);
+  --popover: #ffffff;
+  --popover-foreground: var(--graphite);
+  --primary: var(--marking);
+  --primary-foreground: var(--graphite);
+  --secondary: #e3e7e9;
+  --secondary-foreground: var(--graphite);
+  --muted: #e6e9eb;
+  --muted-foreground: var(--steel);
+  --accent: #e8ebed;
+  --accent-foreground: var(--graphite);
+  --destructive: #c62828;
+  --border: var(--line);
+  --input: #c4cbcf;
+  --ring: var(--graphite);
+
+  --status-approved: #1e7d4f;
+  --status-pending: #9a5b00;
+  --status-rejected: #c62828;
+  --status-info: #1f5fa8;
+  --status-neutral: var(--steel);
+
+  --sidebar: var(--graphite);
+  --sidebar-foreground: #c9d0d4;
+  --sidebar-primary: var(--marking);
+  --sidebar-primary-foreground: var(--graphite);
+  --sidebar-accent: #2c343a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #333c42;
+  --sidebar-ring: var(--marking);
+
+  --chart-1: #1f5fa8;
+  --chart-2: #1e7d4f;
+  --chart-3: #9a5b00;
+  --chart-4: #5c6870;
+  --chart-5: #c62828;
+}
+
+.dark {
+  --background: #161b1e;
+  --foreground: #e6e9eb;
+  --card: #1e2428;
+  --card-foreground: #e6e9eb;
+  --popover: #1e2428;
+  --popover-foreground: #e6e9eb;
+  --secondary: #2a3136;
+  --secondary-foreground: #e6e9eb;
+  --muted: #252c31;
+  --muted-foreground: #9aa6ad;
+  --accent: #2a3136;
+  --accent-foreground: #ffffff;
+  --destructive: #ef5350;
+  --border: #303a40;
+  --input: #3a454c;
+  --ring: var(--marking);
+
+  --status-approved: #4cc38a;
+  --status-pending: #f0a63a;
+  --status-rejected: #ef6b6b;
+  --status-info: #6aa8f0;
+
+  --sidebar: #11161a;
+  --sidebar-accent: #1f262b;
+  --sidebar-border: #262e33;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-marking: var(--marking);
+  --color-status-approved: var(--status-approved);
+  --color-status-pending: var(--status-pending);
+  --color-status-rejected: var(--status-rejected);
+  --color-status-info: var(--status-info);
+  --color-status-neutral: var(--status-neutral);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/60;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+  /* Numbers line up in every table, badge and figure. */
+  table,
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Signage voice: semi-condensed, heavy, tight. Used for page titles and the wordmark. */
+  .type-signage {
+    font-stretch: 82%;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  .type-section {
+    font-stretch: 90%;
+    font-weight: 650;
+    font-size: 0.95rem;
+  }
+}
